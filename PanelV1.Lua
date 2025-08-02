@@ -2,6 +2,7 @@ local UIS = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local PlayerGui = player:WaitForChild("PlayerGui")
+local RunService = game:GetService("RunService")
 
 local gui = game:GetObjects("rbxassetid://82094800004860")[1]
 
@@ -19,6 +20,8 @@ local active = false
 
 -- commands already been ran:
 local fly = false
+local Clip = true
+local NoclippingConnection = nil
 
 -- Sounds
 local SF = gui:WaitForChild("SFX"):WaitForChild("Default")
@@ -238,28 +241,40 @@ local function processCommand(fullInput)
 			end
 		end,
 		noclip = function()
-			local character = player.Character
-			if not character then return end
-			partsToCheck = {"UpperTorso", "LowerTorso", "Head", "Torso", "HumanoidRootPart"}
-			for _, name in ipairs(partsToCheck) do
-				local part = character:FindFirstChild(name)
-				if part and part:IsA("BasePart") then
-					part.CanCollide = false
-				end
+			Clip = false
+			task.wait(0.1)
+
+			if NoclippingConnection then
+				NoclippingConnection:Disconnect()
 			end
+
+			NoclippingConnection = RunService.Stepped:Connect(function()
+				local character = player.Character
+				if Clip == false and character then
+					for _, part in ipairs(character:GetDescendants()) do
+						if part:IsA("BasePart") and part.CanCollide == true then
+							part.CanCollide = false
+						end
+					end
+				end
+			end)
 		end,
 		clip = function()
+			Clip = true
+			if NoclippingConnection then
+				NoclippingConnection:Disconnect()
+				NoclippingConnection = nil
+			end
+
 			local character = player.Character
-			if not character then return end
-			partsToCheck = {"UpperTorso", "LowerTorso", "Torso", "HumanoidRootPart"}
-			for _, name in ipairs(partsToCheck) do
-				local part = character:FindFirstChild(name)
-				if part and part:IsA("BasePart") then
-					part.CanCollide = true
+			if character then
+				for _, part in ipairs(character:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.CanCollide = true
+					end
 				end
 			end
 		end,
-
 		kill = function()
 			return
 		end,
