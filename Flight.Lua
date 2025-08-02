@@ -64,8 +64,11 @@ end
 
 local function updateNoclip(state)
     noclipEnabled = state
-    for _, name in ipairs({ "Head", "Torso" }) do
-        local part = hrp.Parent:FindFirstChild(name)
+    local character = hrp.Parent
+    if not character then return end
+    local partsToCheck = {"Head", "UpperTorso", "LowerTorso", "Torso", "HumanoidRootPart"}
+    for _, name in ipairs(partsToCheck) do
+        local part = character:FindFirstChild(name)
         if part and part:IsA("BasePart") then
             part.CanCollide = not state
         end
