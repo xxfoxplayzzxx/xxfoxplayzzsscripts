@@ -31,11 +31,15 @@ local Type = SF:WaitForChild("Type")
 local validcmds = {
 	fly = true,
 	noclip = true,
+	clip = true,
 	kill = true,
 	saveinstance = true,
 	goto = true,
 	infyield = true,
-	tracers = true
+	tracers = true,
+	sit = true,
+	unsit = true,
+	reset = true
 }
 
 -- Vibrant color scheme for overlay
@@ -152,71 +156,71 @@ StringUtils.matchScore = function(str, pattern)
 end
 
 local function updateAutocomplete()
-    local fullText = input.Text
-    underlay.Text = ""
-    colorizeCommand(fullText)
+	local fullText = input.Text
+	underlay.Text = ""
+	colorizeCommand(fullText)
 
-    -- Get the last segment
-    local lastSegment = fullText:match("([^,]*)$"):gsub("^%s*(.-)%s*$", "%1")
-    if lastSegment == "" then return end
+	-- Get the last segment
+	local lastSegment = fullText:match("([^,]*)$"):gsub("^%s*(.-)%s*$", "%1")
+	if lastSegment == "" then return end
 
-    -- Split into command and arguments
-    local cmd, args = lastSegment:match("^(%S+)%s*(.*)$")
-    cmd = cmd or ""
-    args = args or ""
+	-- Split into command and arguments
+	local cmd, args = lastSegment:match("^(%S+)%s*(.*)$")
+	cmd = cmd or ""
+	args = args or ""
 
-    -- Check for multi-command situation
-    local hasExistingCommas = fullText:sub(1, -#lastSegment - 1):find(",")
-    local prefix = hasExistingCommas and fullText:sub(1, -#lastSegment - 1) or ""
+	-- Check for multi-command situation
+	local hasExistingCommas = fullText:sub(1, -#lastSegment - 1):find(",")
+	local prefix = hasExistingCommas and fullText:sub(1, -#lastSegment - 1) or ""
 
-    -- Find best match for command (only if starting letters match)
-    local bestCmdMatch, bestCmdScore = nil, 0
-    for cmdName in pairs(validcmds) do
-        -- Only suggest if the typed letters match the beginning of the command
-        if cmdName:lower():sub(1, #cmd) == cmd:lower() then
-            bestCmdMatch = cmdName
-            bestCmdScore = 1.0
-            break
-        end
-    end
+	-- Find best match for command (only if starting letters match)
+	local bestCmdMatch, bestCmdScore = nil, 0
+	for cmdName in pairs(validcmds) do
+		-- Only suggest if the typed letters match the beginning of the command
+		if cmdName:lower():sub(1, #cmd) == cmd:lower() then
+			bestCmdMatch = cmdName
+			bestCmdScore = 1.0
+			break
+		end
+	end
 
-    -- Find best match for player (if we have arguments)
-    local bestPlayerMatch, bestPlayerScore = nil, 0
-    if args ~= "" then
-        -- Check for "random" keyword
-        if args:lower() == "rand" or args:lower() == "rando" or args:lower() == "random" then
-            bestPlayerMatch = "random"
-            bestPlayerScore = 1.0
-        else
-            for _, player in pairs(Players:GetPlayers()) do
-                -- Only suggest if the typed letters match the beginning of the name
-                if player.Name:lower():sub(1, #args) == args:lower() then
-                    bestPlayerMatch = player.Name
-                    bestPlayerScore = 1.0
-                    break
-                end
-            end
-        end
-    end
+	-- Find best match for player (if we have arguments)
+	local bestPlayerMatch, bestPlayerScore = nil, 0
+	if args ~= "" then
+		-- Check for "random" keyword
+		if args:lower() == "rand" or args:lower() == "rando" or args:lower() == "random" then
+			bestPlayerMatch = "random"
+			bestPlayerScore = 1.0
+		else
+			for _, player in pairs(Players:GetPlayers()) do
+				-- Only suggest if the typed letters match the beginning of the name
+				if player.Name:lower():sub(1, #args) == args:lower() then
+					bestPlayerMatch = player.Name
+					bestPlayerScore = 1.0
+					break
+				end
+			end
+		end
+	end
 
-    -- If we have an exact command match with no arguments, auto-complete it
-    if args == "" and bestCmdMatch and bestCmdMatch:lower() == cmd:lower() then
-        -- Don't show suggestion since it's already complete
-        underlay.Text = ""
-    elseif args == "" and bestCmdMatch and bestCmdScore > 0.5 then
-        -- Suggest command completion
-        underlay.Text = prefix .. bestCmdMatch
-        underlay.TextTransparency = 0.5
-        
-        -- Add a space for arguments if it's a perfect match
-        if bestCmdMatch:lower():sub(1, #cmd) == cmd:lower() then
-            underlay.Text = underlay.Text .. " "
-        end
-    elseif args ~= "" and bestPlayerMatch and bestPlayerScore > 0.5 then
-        -- Suggest player completion
-        underlay.Text = prefix .. (bestCmdMatch or cmd) .. " " .. bestPlayerMatch
-        underlay.TextTransparency = 0.5
-    end
+	-- If we have an exact command match with no arguments, auto-complete it
+	if args == "" and bestCmdMatch and bestCmdMatch:lower() == cmd:lower() then
+		-- Don't show suggestion since it's already complete
+		underlay.Text = ""
+	elseif args == "" and bestCmdMatch and bestCmdScore > 0.5 then
+		-- Suggest command completion
+		underlay.Text = prefix .. bestCmdMatch
+		underlay.TextTransparency = 0.5
+
+		-- Add a space for arguments if it's a perfect match
+		if bestCmdMatch:lower():sub(1, #cmd) == cmd:lower() then
+			underlay.Text = underlay.Text .. " "
+		end
+	elseif args ~= "" and bestPlayerMatch and bestPlayerScore > 0.5 then
+		-- Suggest player completion
+		underlay.Text = prefix .. (bestCmdMatch or cmd) .. " " .. bestPlayerMatch
+		underlay.TextTransparency = 0.5
+	end
 end
 
 local function processCommand(fullInput)
@@ -234,7 +238,38 @@ local function processCommand(fullInput)
 			end
 		end,
 		noclip = function()
-			return "this does nothing yet lol"
+			local character = player.Character
+			if not character then return end
+			local partsToCheck = {}
+			if character:FindFirstChildOfClass("Humanoid").RigType == "R6" then
+				local partsToCheck = {"Head", "Torso", "HumanoidRootPart"}
+			else
+				local partsToCheck = {"UpperTorso", "LowerTorso", "HumanoidRootPart"}
+			end
+			for _, name in ipairs(partsToCheck) do
+				local part = character:FindFirstChild(name)
+				if part and part:IsA("BasePart") then
+					part.CanCollide = false
+				end
+			end
+			return
+		end,
+		clip = function()
+			local character = player.Character
+			if not character then return end
+			local partsToCheck = {}
+			if character:FindFirstChildOfClass("Humanoid").RigType == "R6" then
+				local partsToCheck = {"Head", "Torso", "HumanoidRootPart"}
+			else
+				local partsToCheck = {"UpperTorso", "LowerTorso", "HumanoidRootPart"}
+			end
+			for _, name in ipairs(partsToCheck) do
+				local part = character:FindFirstChild(name)
+				if part and part:IsA("BasePart") then
+					part.CanCollide = true
+				end
+			end
+			return
 		end,
 		kill = function()
 			return "this does nothing yet lol"
@@ -245,8 +280,8 @@ local function processCommand(fullInput)
 			return "hol up, this might take a while"
 		end,
 		infyield = function()
-		loadstring(game:HttpGet('https://raw.githubusercontent.com/DarkNetworks/Infinite-Yield/main/latest.lua'))()
-		return "Tried to load Infinite Yield"
+			loadstring(game:HttpGet('https://raw.githubusercontent.com/DarkNetworks/Infinite-Yield/main/latest.lua'))()
+			return "Tried to load Infinite Yield"
 		end,
 		goto = function(args)
 			local targetName = args:match("%S+") or ""
@@ -256,28 +291,24 @@ local function processCommand(fullInput)
 			if targetName:lower() == "random" then
 				local players = Players:GetPlayers()
 				if #players > 0 then
-					-- Create list of potential targets (excluding yourself if possible)
 					local candidates = {}
 					for _, player in pairs(players) do
-						if player ~= player then  -- Don't select yourself unless alone
+						if player ~= player then
 							table.insert(candidates, player)
 						end
 					end
 
-					-- If only you are in the game, select yourself
 					if #candidates == 0 then
 						candidates = players
 					end
 
-					-- Get a truly random selection each time
-					math.randomseed(tick()) -- Refresh random seed
+					math.randomseed(tick())
 					targetPlayer = candidates[math.random(1, #candidates)]
 					targetName = targetPlayer.Name
 				else
 					return "No players found"
 				end
 			else
-				-- Normal player lookup
 				for _, player in pairs(Players:GetPlayers()) do
 					if string.find(string.lower(player.Name), string.lower(targetName)) then
 						targetPlayer = player
@@ -313,7 +344,16 @@ local function processCommand(fullInput)
 		tracers = function()
 			loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/main/TracerModule.Lua"))()
 			return
-		end
+		end,
+		sit = function()
+			player.Character:FindFirstChildOfClass("Humanoid").Sit = true
+		end,
+		unsit = function()
+			player.Character:FindFirstChildOfClass("Humanoid").Sit = false
+		end,
+		reset = function()
+			player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Dead)
+		end,
 	}
 
 	for cmd in fullInput:gmatch("([^,]+)") do
@@ -368,11 +408,11 @@ UIS.InputBegan:Connect(function(inputObj, gpe)
 end)
 
 input.InputBegan:Connect(function(inputObj)
-    if inputObj.KeyCode == Enum.KeyCode.Tab and underlay.Text ~= "" then
-        input.Text = underlay.Text
-        -- Move cursor to end
-        input.CursorPosition = #input.Text + 1
-    end
+	if inputObj.KeyCode == Enum.KeyCode.Tab and underlay.Text ~= "" then
+		input.Text = underlay.Text
+		-- Move cursor to end
+		input.CursorPosition = #input.Text + 1
+	end
 end)
 
 -- Click outside to close
