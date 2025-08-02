@@ -460,45 +460,76 @@ local function processCommand(fullInput)
 			return "Flinging "..targetPlayer.Name
 		end,
 		unfling = function()
-			flinging = false
+    flinging = false
 
-			if flingLoop then
-				flingLoop:Disconnect()
-				flingLoop = nil
-			end
+    if flingLoop then
+        flingLoop:Disconnect()
+        flingLoop = nil
+    end
 
-			if player.Character then
-				for _, child in pairs(player.Character:GetDescendants()) do
-					if child:IsA("BasePart") then
-						child.Velocity = Vector3.new(0,0,0)
-						child.RotVelocity = Vector3.new(0,0,0)
-					end
-				end
-				wait(0.05)
-			end
+    -- Get character reference first
+    local character = player.Character
+    if not character then return end
+    
+    -- Clear all movement-related properties
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    
+    -- Reset humanoid states first
+    if humanoid then
+        humanoid.PlatformStand = false
+        humanoid.AutoRotate = true
+        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+    end
+    
+    -- Clear all velocity and rotation effects
+    for _, child in pairs(character:GetDescendants()) do
+        if child:IsA("BasePart") then
+            child.Velocity = Vector3.new()
+            child.RotVelocity = Vector3.new()
+            
+            -- Clear any custom physics effects
+            for _, v in pairs(child:GetChildren()) do
+                if v:IsA("BodyVelocity") or v:IsA("BodyAngularVelocity") or v:IsA("BodyForce") or v:IsA("BodyThrust") then
+                    v:Destroy()
+                end
+            end
+        end
+    end
+    
+    -- Wait a frame for physics to update
+    RunService.Heartbeat:Wait()
+    
+    -- If we had an original position, teleport back
+    if originalPosition and rootPart then
+        -- Freeze before teleporting
+        rootPart.Anchored = true
+        rootPart.CFrame = originalPosition
+        RunService.Heartbeat:Wait() -- Wait another frame
+        rootPart.Anchored = false
+    end
+    
+    -- Final cleanup
+    if rootPart then
+        for _, v in pairs(rootPart:GetChildren()) do
+            if v.Name == "ADONIS_FLIGHT_POSITION" then
+                v:Destroy()
+            end
+        end
+    end
+    
+    -- Reset any remaining movement
+    if rootPart then
+        rootPart.Velocity = Vector3.new()
+        rootPart.RotVelocity = Vector3.new()
+    end
+    
+    processCommand("clip")
+    targetPlayer = nil
+    originalPosition = nil
 
-			if originalPosition and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-				player.Character.HumanoidRootPart.CFrame = originalPosition
-			end
-			originalPosition = nil
-
-			local character = player.Character
-			if character then
-				local root = character:FindFirstChild("HumanoidRootPart")
-				if root then
-					for _, v in pairs(root:GetChildren()) do
-						if v.Name == "ADONIS_FLIGHT_POSITION" then
-							v:Destroy()
-						end
-					end
-				end
-			end
-
-			processCommand("clip")
-			targetPlayer = nil
-
-			return "Stopped flinging"
-		end,
+    return "Stopped flinging"
+end,
 	}
 
 	for cmd in fullInput:gmatch("([^,]+)") do
