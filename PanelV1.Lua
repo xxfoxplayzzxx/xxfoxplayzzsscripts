@@ -475,24 +475,24 @@ end,
 unfling = function()
     flinging = false
 
-    -- Disconnect the fling loop first
+    -- Disconnect fling loop
     if flingLoop then
         flingLoop:Disconnect()
         flingLoop = nil
     end
 
-    -- Get character and root part
+    -- Get character and humanoid
     local character = player.Character
     if not character then return end
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
     local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
 
-    -- STEP 1: ANCHOR CHARACTER (Freeze in place)
+    -- ANCHOR character (freeze in place)
     if rootPart then
         rootPart.Anchored = true
     end
 
-    -- STEP 2: CLEAR ALL PHYSICS EFFECTS
+    -- CLEAR ALL PHYSICS EFFECTS
     for _, part in pairs(character:GetDescendants()) do
         if part:IsA("BasePart") then
             part.Velocity = Vector3.new(0, 0, 0)
@@ -506,31 +506,33 @@ unfling = function()
         end
     end
 
-    -- STEP 3: RESET HUMANOID
+    -- RESET HUMANOID
     if humanoid then
         humanoid.PlatformStand = false
         humanoid.AutoRotate = true
         humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
     end
 
-    -- STEP 4: WAIT FOR STABILIZATION
-    task.wait(0.2) -- Short delay to let physics settle
+    -- WAIT for stabilization
+    task.wait(0.2)
 
-    -- STEP 5: TELEPORT BACK TO ORIGINAL POSITION (if saved)
+    -- TELEPORT BACK TO ORIGINAL POSITION (if saved)
     if originalPosition and rootPart then
         rootPart.CFrame = originalPosition
-        task.wait(0.1) -- Extra delay after teleporting
+        task.wait(0.1)
     end
 
-    -- STEP 6: FINAL CLEANUP
+    -- DESTROY FLING EFFECTS
     if rootPart then
-        -- Clear any remaining fling effects
         for _, v in pairs(rootPart:GetChildren()) do
             if v.Name == "ADONIS_FLIGHT_POSITION" then
                 v:Destroy()
             end
         end
-        -- Unanchor only after everything is stable
+    end
+
+    -- FINALLY, UNANCHOR (after everything is stable)
+    if rootPart then
         rootPart.Anchored = false
     end
 
@@ -538,7 +540,7 @@ unfling = function()
     targetPlayer = nil
     originalPosition = nil
 
-    return "Stopped flinging"
+    return "Stopped flinging (fully stable)"
 end
 	}
 
