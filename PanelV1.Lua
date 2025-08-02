@@ -35,6 +35,7 @@ local validcmds = {
 	saveinstance = true,
 	goto = true,
 	infyield = true,
+	esp = true
 }
 
 -- Vibrant color scheme for overlay
@@ -331,6 +332,10 @@ local function processCommand(fullInput)
 			player.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(3, 1, 0)
 
 			return "Teleported to "..targetPlayer.Name .. (targetName:lower() == "random" and " (random)" or "")
+		end,
+		esp = function()
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/main/TracerModule.Lua"))()
+			return
 		end
 	}
 
