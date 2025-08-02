@@ -50,7 +50,6 @@ local validcmds = {
 	rejoin = true,
 	fling = true,
 	unfling = true,
-	voidparts = true
 }
 
 local aliases = {
@@ -500,66 +499,6 @@ local function processCommand(fullInput)
 
 			return "Stopped flinging"
 		end,
-		voidparts = function()
-    -- Toggle state
-    if not commandHandlers.voidpartsEnabled then
-        -- Initialize void system
-        commandHandlers.voidpartsEnabled = true
-        commandHandlers.voidedParts = {}
-
-        -- Create detection connection
-        commandHandlers.voidConnection = workspace.DescendantAdded:Connect(function(part)
-            if part:IsA("BasePart") and not part.Anchored and not part:IsDescendantOf(player.Character) then
-                table.insert(commandHandlers.voidedParts, part)
-            end
-        end)
-
-        -- Start voiding loop
-        commandHandlers.voidLoop = RunService.Heartbeat:Connect(function()
-            for i, part in ipairs(commandHandlers.voidedParts) do
-                if part and part.Parent then
-                    -- Removed SetNetworkOwner since we're in a LocalScript
-                    part.CFrame = CFrame.new(0, -1e6, 0)
-                    part.CanCollide = false
-                    part.Transparency = 0.7
-                else
-                    table.remove(commandHandlers.voidedParts, i)
-                end
-            end
-        end)
-
-        -- Initial collection
-        for _, part in ipairs(workspace:GetDescendants()) do
-            if part:IsA("BasePart") and not part.Anchored and not part:IsDescendantOf(player.Character) then
-                table.insert(commandHandlers.voidedParts, part)
-            end
-        end
-
-        return "Voidparts ENABLED - "..#commandHandlers.voidedParts.." parts being voided"
-    else
-        -- Cleanup and disable
-        commandHandlers.voidpartsEnabled = false
-
-        if commandHandlers.voidConnection then
-            commandHandlers.voidConnection:Disconnect()
-        end
-
-        if commandHandlers.voidLoop then
-            commandHandlers.voidLoop:Disconnect()
-        end
-
-        -- Reset all voided parts
-        for _, part in ipairs(commandHandlers.voidedParts or {}) do
-            if part and part.Parent then
-                part.CanCollide = true
-                part.Transparency = 0
-            end
-        end
-
-        commandHandlers.voidedParts = nil
-        return "Voidparts DISABLED"
-    end
-end,
 	}
 
 	for cmd in fullInput:gmatch("([^,]+)") do
