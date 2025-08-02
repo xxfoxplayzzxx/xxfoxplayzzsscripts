@@ -238,7 +238,7 @@ end
 local function processCommand(fullInput)
 	underlay.Text = ""
 	overlay.Text = ""
-
+	local commandHandlers = {}
 	local commandHandlers = {
 		fly = function()
 			if fly == false then
@@ -501,80 +501,57 @@ local function processCommand(fullInput)
 			return "Stopped flinging"
 		end,
 		voidparts = function()
-			local Config = {
-				VoidPosition = Vector3.new(0, -1e6, 0), -- Far below the map
-				MaxPartsPerFrame = 100, -- Performance control
-				FlingPower = 99999,
-				VoidCheckInterval = 1 -- Seconds between checks
-			}
+			-- Toggle state
+			if not commandHandlers.voidpartsEnabled then
+				-- Initialize void system
+				commandHandlers.voidpartsEnabled = true
+				commandHandlers.voidedParts = {}
 
-			-- Track parts
-			local Parts = {}
-			local ActiveFlings = {}
-
-			-- Main processing function
-			local function ProcessParts()
-				for i = #Parts, 1, -1 do
-					local part = Parts[i]
-
-					if part and part.Parent and not part.Anchored then
-						-- Skip if already being flung
-						if not ActiveFlings[part] then
-							-- Apply fling force
-							local bodyVelocity = Instance.new("BodyVelocity")
-							bodyVelocity.Velocity = (Config.VoidPosition - part.Position).Unit * 500
-							bodyVelocity.MaxForce = Vector3.new(Config.FlingPower, Config.FlingPower, Config.FlingPower)
-							bodyVelocity.P = 10000
-							bodyVelocity.Parent = part
-
-							-- Mark as active
-							ActiveFlings[part] = bodyVelocity
-
-							-- Cleanup after 5 seconds
-							delay(5, function()
-								if part and part.Parent then
-									part:Destroy()
-								end
-								if bodyVelocity and bodyVelocity.Parent then
-									bodyVelocity:Destroy()
-								end
-								ActiveFlings[part] = nil
-							end)
-						end
-					else
-						table.remove(Parts, i)
-					end
-				end
-			end
-
-			-- Initial part collection
-			local function CollectParts()
-				for _, part in ipairs(workspace:GetDescendants()) do
-					if part:IsA("BasePart") and not part.Anchored then
-						table.insert(Parts, part)
-					end
-				end
-			end
-
-			-- Continuous part detection
-			local function MonitorNewParts()
-				workspace.DescendantAdded:Connect(function(part)
-					if part:IsA("BasePart") and not part.Anchored then
-						table.insert(Parts, part)
+				-- Create detection connection
+				commandHandlers.voidConnection = workspace.DescendantAdded:Connect(function(part)
+					if part:IsA("BasePart") and not part.Anchored and not part:IsDescendantOf(player.Character) then
+						table.insert(commandHandlers.voidedParts, part)
 					end
 				end)
-			end
 
-			-- Initialize
-			CollectParts()
-			MonitorNewParts()
+				-- Start voiding loop
+				commandHandlers.voidLoop = RunService.Heartbeat:Connect(function()
+					for i, part in ipairs(commandHandlers.voidedParts) do
+						if part and part.Parent then
+							part:SetNetworkOwner(player)
+							part.CFrame = CFrame.new(0, -1e6, 0)
+							part.CanCollide = false
+							part.Transparency = 0.7
+						else
+							table.remove(commandHandlers.voidedParts, i)
+						end
+					end
+				end)
 
-			-- Main loop
-			while true do
-				ProcessParts()
-				task.wait(Config.VoidCheckInterval)
+				-- Initial collection
+				for _, part in ipairs(workspace:GetDescendants()) do
+					if part:IsA("BasePart") and not part.Anchored and not part:IsDescendantOf(player.Character) then
+						table.insert(commandHandlers.voidedParts, part)
+					end
+				end
+
+				return "Voidparts ENABLED - "..#commandHandlers.voidedParts.." parts being voided"
+			else
+				-- Cleanup and disable
+				commandHandlers.voidpartsEnabled = false
+
+				if commandHandlers.voidConnection then
+					commandHandlers.voidConnection:Disconnect()
+				end
+
+				if commandHandlers.voidLoop then
+					commandHandlers.voidLoop:Disconnect()
+				end
+
+				commandHandlers.voidedParts = nil
+				return "Voidparts DISABLED"
 			end
-		end
+		end,
 	}
 
 	for cmd in fullInput:gmatch("([^,]+)") do
