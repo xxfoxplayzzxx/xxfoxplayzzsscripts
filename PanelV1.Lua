@@ -382,6 +382,44 @@ local function processCommand(fullInput)
 			local targetName = args:match("%S+") or ""
 			local targetPlayer = nil
 
+			-- If no target specified, fling yourself in place
+			if targetName == "" then
+				-- Store original position
+				originalPosition = player.Character.HumanoidRootPart.CFrame
+
+				-- Enable noclip
+				processCommand("noclip")
+
+				-- Set up fling properties
+				local root = player.Character.HumanoidRootPart
+				for _, child in pairs(player.Character:GetDescendants()) do
+					if child:IsA("BasePart") then
+						child.CustomPhysicalProperties = PhysicalProperties.new(math.huge, 0.3, 0.5)
+						child.CanCollide = false
+						child.Massless = true
+						child.Velocity = Vector3.new(0, 0, 0)
+					end
+				end
+
+				local bambam = Instance.new("BodyAngularVelocity")
+				bambam.Name = "ADONIS_FLIGHT_POSITION"
+				bambam.Parent = root
+				bambam.AngularVelocity = Vector3.new(0, 99999, 0)
+				bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+				bambam.P = math.huge
+
+				-- Create death connection to clean up
+				if flingConnection then
+					flingConnection:Disconnect()
+				end
+				flingConnection = player.Character.Humanoid.Died:Connect(function()
+					processCommand("unfling")
+				end)
+
+				flinging = true
+				return "Flinging in place"
+			end
+
 			-- Handle random selection
 			if targetName:lower() == "random" then
 				local players = Players:GetPlayers()
@@ -416,6 +454,7 @@ local function processCommand(fullInput)
 				return "Player '"..targetName.."' not found"
 			end
 
+			-- Validate characters
 			if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
 				return "Target player has no character"
 			end
@@ -448,11 +487,48 @@ local function processCommand(fullInput)
 			end
 
 			local bambam = Instance.new("BodyAngularVelocity")
-			bambam.Name = "FlingVelocity"
+			bambam.Name = "ADONIS_FLIGHT_POSITION"
 			bambam.Parent = root
 			bambam.AngularVelocity = Vector3.new(0, 99999, 0)
-			bambam.MaxTorque = Vector3.new(0, math.huge, 0)
+			bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
 			bambam.P = math.huge
+
+			-- Create connections to monitor target
+			local targetDiedConnection = nil
+			local targetCharacterAddedConnection = nil
+
+			local function cleanUpTargetConnections()
+				if targetDiedConnection then
+					targetDiedConnection:Disconnect()
+					targetDiedConnection = nil
+				end
+				if targetCharacterAddedConnection then
+					targetCharacterAddedConnection:Disconnect()
+					targetCharacterAddedConnection = nil
+				end
+			end
+
+			local function setupTargetMonitoring()
+				cleanUpTargetConnections()
+
+				if targetPlayer.Character then
+					targetDiedConnection = targetPlayer.Character.Humanoid.Died:Connect(function()
+						processCommand("unfling")
+					end)
+				end
+
+				targetCharacterAddedConnection = targetPlayer.CharacterAdded:Connect(function(char)
+					wait(1) -- Wait for character to fully load
+					if char:FindFirstChild("HumanoidRootPart") then
+						-- Continue flinging the new character
+						setupTargetMonitoring()
+					else
+						processCommand("unfling")
+					end
+				end)
+			end
+
+			setupTargetMonitoring()
 
 			-- Create death connection to clean up
 			if flingConnection then
@@ -465,28 +541,46 @@ local function processCommand(fullInput)
 			-- Create fling loop
 			flinging = true
 			flingLoop = RunService.Heartbeat:Connect(function()
-				if not flinging or not targetPlayer or not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+				if not flinging then return end
+
+				-- Check if we still have valid references
+				if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
 					processCommand("unfling")
 					return
 				end
 
-				-- Alternate between flinging and moving to target
-				local now = tick()
-				local cycleTime = 3 -- seconds per cycle
-				local phase = (now % cycleTime) / cycleTime
+				local root = player.Character.HumanoidRootPart
 
-				if phase < 0.5 then
-					-- Fling phase
-					bambam.AngularVelocity = Vector3.new(0, 99999, 0)
-					root.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -2)
+				if targetPlayer then
+					-- Check target validity
+					if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+						processCommand("unfling")
+						return
+					end
+
+					local targetRoot = targetPlayer.Character.HumanoidRootPart
+
+					-- Alternate between flinging and moving to target
+					local now = tick()
+					local cycleTime = 1.5
+					local phase = (now % cycleTime) / cycleTime
+
+					if phase < 0.5 then
+						-- Fling phase
+						bambam.AngularVelocity = Vector3.new(0, 99999, 0)
+						root.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -2)
+					else
+						-- Move to target phase
+						bambam.AngularVelocity = Vector3.new(0, 0, 0)
+						root.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -5)
+					end
 				else
-					-- Move to target phase
-					bambam.AngularVelocity = Vector3.new(0, 0, 0)
-					root.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -5)
+					-- Just fling in place
+					bambam.AngularVelocity = Vector3.new(0, 99999, 0)
 				end
 			end)
 
-			return "Flinging "..targetPlayer.Name
+			return "Flinging "..(targetPlayer and targetPlayer.Name or "in place")
 		end,
 
 		unfling = function()
@@ -504,6 +598,16 @@ local function processCommand(fullInput)
 				flingConnection = nil
 			end
 
+			-- Clean up target monitoring connections
+			if targetDiedConnection then
+				targetDiedConnection:Disconnect()
+				targetDiedConnection = nil
+			end
+			if targetCharacterAddedConnection then
+				targetCharacterAddedConnection:Disconnect()
+				targetCharacterAddedConnection = nil
+			end
+
 			-- Restore original position if available
 			if originalPosition and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
 				player.Character.HumanoidRootPart.CFrame = originalPosition
@@ -517,7 +621,7 @@ local function processCommand(fullInput)
 				local root = character:FindFirstChild("HumanoidRootPart")
 				if root then
 					for _, v in pairs(root:GetChildren()) do
-						if v.Name == "FlingVelocity" then
+						if v.Name == "ADONIS_FLIGHT_POSITION" then
 							v:Destroy()
 						end
 					end
@@ -536,7 +640,7 @@ local function processCommand(fullInput)
 			processCommand("clip") -- Re-enable clipping
 
 			return "Stopped flinging"
-		end
+		end,
 	}
 
 	for cmd in fullInput:gmatch("([^,]+)") do
