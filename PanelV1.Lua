@@ -42,7 +42,13 @@ local validcmds = {
 	tracers = true,
 	sit = true,
 	unsit = true,
-	reset = true
+	reset = true,
+	rejoin = true,
+}
+
+local aliases = {
+	rj = "rejoin",
+	re = "reset",
 }
 
 -- Vibrant color scheme for overlay
@@ -358,6 +364,15 @@ local function processCommand(fullInput)
 		reset = function()
 			player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Dead)
 		end,
+		rejoin = function()
+			if #Players:GetPlayers() <= 1 then
+				Players.LocalPlayer:Kick("\nRejoining...")
+				wait()
+				TeleportService:Teleport(PlaceId, Players.LocalPlayer)
+			else
+				TeleportService:TeleportToPlaceInstance(PlaceId, JobId, Players.LocalPlayer)
+			end
+		end
 	}
 
 	for cmd in fullInput:gmatch("([^,]+)") do
@@ -367,6 +382,12 @@ local function processCommand(fullInput)
 
 		if cmdName ~= "" then
 			cmdName = cmdName:lower()
+
+			-- Check for aliases before checking valid commands
+			if aliases[cmdName] then
+				cmdName = aliases[cmdName]
+			end
+
 			if validcmds[cmdName] then
 				Exec:Play()
 				local handler = commandHandlers[cmdName]
