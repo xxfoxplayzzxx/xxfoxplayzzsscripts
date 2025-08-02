@@ -378,170 +378,157 @@ local function processCommand(fullInput)
 			end
 		end,
 		fling = function(args)
-    local targetName = args:match("%S+") or ""
-    local targetPlayer = nil
+        local targetName = args:match("%S+") or ""
+        targetPlayer = nil
 
-    processCommand("noclip")
-    wait(0.1)
-
-    if targetName == "" then
-        -- Self-fling (spin in place like a top)
-        local root = player.Character.HumanoidRootPart
-        
-        -- Clear existing velocities
-        root.Velocity = Vector3.new()
-        root.RotVelocity = Vector3.new()
-        
-        -- Create angular velocity for spinning
-        local bambam = Instance.new("BodyAngularVelocity")
-        bambam.Name = "ADONIS_FLIGHT_POSITION"
-        bambam.Parent = root
-        bambam.AngularVelocity = Vector3.new(0, 99999, 0) -- Spin only on Y-axis
-        bambam.MaxTorque = Vector3.new(0, math.huge, 0)   -- Only allow torque on Y-axis
-        bambam.P = math.huge
-        
-        -- Anchor temporarily to stabilize
-        root.Anchored = true
+        processCommand("noclip")
         task.wait(0.1)
-        root.Anchored = false
-        
-        flinging = true
-        return
-    end
 
-    if targetName:lower() == "random" then
-        local players = Players:GetPlayers()
-        if #players > 0 then
-            targetPlayer = players[math.random(1,#players)]
-            targetName = targetPlayer.Name
-        else
-            return "No players found"
-        end
-    else
-        for _, p in pairs(Players:GetPlayers()) do
-            if string.find(string.lower(p.Name), string.lower(targetName)) then
-                targetPlayer = p
-                break
+        local character = player.Character
+        if not character then return end
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+        if not rootPart or not humanoid then return end
+
+        if targetName == "" then
+            -- Self-fling (spin in place)
+            rootPart.Anchored = true
+            rootPart.Velocity = Vector3.new()
+            rootPart.RotVelocity = Vector3.new()
+
+            -- Disable R15 joints to prevent physics interference
+            for _, v in pairs(character:GetDescendants()) do
+                if v:IsA("Motor6D") and (v.Name == "Waist" or v.Name == "Root") then
+                    v.Enabled = false
+                end
             end
-        end
-    end
 
-    if not targetPlayer then return "Player not found" end
-
-    originalPosition = player.Character.HumanoidRootPart.CFrame
-    local root = player.Character.HumanoidRootPart
-
-    -- Enable platform stand when flinging another player
-    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid.PlatformStand = true
-    end
-
-    local bambam = Instance.new("BodyAngularVelocity")
-    bambam.Name = "ADONIS_FLIGHT_POSITION"
-    bambam.Parent = root
-    bambam.AngularVelocity = Vector3.new(0, 99999, 0)
-    bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    bambam.P = math.huge
-
-    -- Immediate teleport INSIDE the target
-    if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        root.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
-    end
-
-    flinging = true
-    local cycleStart = tick()
-
-    flingLoop = RunService.Heartbeat:Connect(function()
-        if not flinging then return end
-
-        if tick() - cycleStart >= 1.5 then
-            processCommand("unfling")
-            return
-        end
-
-        if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            -- Maintain position INSIDE the target
-            root.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+            local bambam = Instance.new("BodyAngularVelocity")
+            bambam.Name = "ADONIS_FLIGHT_POSITION"
+            bambam.Parent = rootPart
             bambam.AngularVelocity = Vector3.new(0, 99999, 0)
-        else
-            processCommand("unfling")
+            bambam.MaxTorque = Vector3.new(0, math.huge, 0)
+            bambam.P = math.huge
+
+            task.wait(0.1)
+            rootPart.Anchored = false
+            flinging = true
+            return "Spinning in place"
         end
-    end)
 
-    return "Flinging "..targetPlayer.Name
-end,
-
-unfling = function()
-    flinging = false
-
-    -- Disconnect fling loop
-    if flingLoop then
-        flingLoop:Disconnect()
-        flingLoop = nil
-    end
-
-    -- Get character and humanoid
-    local character = player.Character
-    if not character then return end
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-
-    -- ANCHOR character (freeze in place)
-    if rootPart then
-        rootPart.Anchored = true
-    end
-
-    -- CLEAR ALL PHYSICS EFFECTS
-    for _, part in pairs(character:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.Velocity = Vector3.new(0, 0, 0)
-            part.RotVelocity = Vector3.new(0, 0, 0)
-            -- Destroy any leftover physics objects
-            for _, v in pairs(part:GetChildren()) do
-                if v:IsA("BodyVelocity") or v:IsA("BodyAngularVelocity") or v:IsA("BodyForce") then
-                    v:Destroy()
+        -- Target player fling
+        if targetName:lower() == "random" then
+            local players = Players:GetPlayers()
+            if #players > 0 then
+                targetPlayer = players[math.random(1,#players)]
+            else
+                return "No players found"
+            end
+        else
+            for _, p in pairs(Players:GetPlayers()) do
+                if string.find(string.lower(p.Name), string.lower(targetName)) then
+                    targetPlayer = p
+                    break
                 end
             end
         end
-    end
 
-    -- RESET HUMANOID
-    if humanoid then
-        humanoid.PlatformStand = false
-        humanoid.AutoRotate = true
-        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-    end
+        if not targetPlayer then return "Player not found" end
 
-    -- WAIT for stabilization
-    task.wait(0.2)
+        originalPosition = rootPart.CFrame
+        humanoid.PlatformStand = true
 
-    -- TELEPORT BACK TO ORIGINAL POSITION (if saved)
-    if originalPosition and rootPart then
-        rootPart.CFrame = originalPosition
-        task.wait(0.1)
-    end
+        local bambam = Instance.new("BodyAngularVelocity")
+        bambam.Name = "ADONIS_FLIGHT_POSITION"
+        bambam.Parent = rootPart
+        bambam.AngularVelocity = Vector3.new(20000, 20000, 20000)
+        bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        bambam.P = math.huge
 
-    -- DESTROY FLING EFFECTS
-    if rootPart then
-        for _, v in pairs(rootPart:GetChildren()) do
-            if v.Name == "ADONIS_FLIGHT_POSITION" then
-                v:Destroy()
+        if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            rootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+        end
+
+        flinging = true
+        local cycleStart = tick()
+
+        flingLoop = RunService.Heartbeat:Connect(function()
+            if not flinging then return end
+
+            if tick() - cycleStart >= 1.5 then
+                processCommand("unfling")
+                return
+            end
+
+            if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                rootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+            else
+                processCommand("unfling")
+            end
+        end)
+
+        return "Flinging "..targetPlayer.Name
+    end,
+
+    unfling = function()
+        flinging = false
+
+        if flingLoop then
+            flingLoop:Disconnect()
+            flingLoop = nil
+        end
+
+        local character = player.Character
+        if not character then return end
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+        if rootPart then
+            rootPart.Anchored = true
+        end
+
+        -- Re-enable R15 joints
+        for _, v in pairs(character:GetDescendants()) do
+            if v:IsA("Motor6D") then
+                v.Enabled = true
+            elseif v:IsA("BasePart") then
+                v.Velocity = Vector3.new()
+                v.RotVelocity = Vector3.new()
+                for _, child in pairs(v:GetChildren()) do
+                    if child:IsA("BodyVelocity") or child:IsA("BodyAngularVelocity") then
+                        child:Destroy()
+                    end
+                end
             end
         end
-    end
 
-    -- FINALLY, UNANCHOR (after everything is stable)
-    if rootPart then
-        rootPart.Anchored = false
-    end
+        if humanoid then
+            humanoid.PlatformStand = false
+            humanoid.AutoRotate = true
+            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
 
-    -- Reset variables
-    targetPlayer = nil
-    originalPosition = nil
+        task.wait(0.3) -- Extra stabilization for R15
 
-    return "Stopped flinging (fully stable)"
-end
+        if originalPosition and rootPart then
+            rootPart.CFrame = originalPosition
+            task.wait(0.1)
+        end
+
+        if rootPart then
+            for _, v in pairs(rootPart:GetChildren()) do
+                if v.Name == "ADONIS_FLIGHT_POSITION" then
+                    v:Destroy()
+                end
+            end
+            rootPart.Anchored = false
+        end
+
+        targetPlayer = nil
+        originalPosition = nil
+        return "Stopped flinging"
+    end,
 	}
 
 	for cmd in fullInput:gmatch("([^,]+)") do
