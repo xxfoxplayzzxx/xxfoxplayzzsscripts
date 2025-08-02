@@ -249,39 +249,47 @@ local function processCommand(fullInput)
 			end
 		end,
 		noclip = function()
-			Clip = false
-			task.wait(0.1)
+    Clip = false
+    task.wait(0.1)
 
-			if NoclippingConnection then
-				NoclippingConnection:Disconnect()
-			end
+    -- Disconnect existing connection if it exists
+    if NoclippingConnection then
+        NoclippingConnection:Disconnect()
+    end
 
-			NoclippingConnection = RunService.Stepped:Connect(function()
-				local character = player.Character
-				if Clip == false and character then
-					for _, part in ipairs(character:GetDescendants()) do
-						if part:IsA("BasePart") and part.CanCollide == true then
-							part.CanCollide = false
-						end
-					end
-				end
-			end)
+    -- Apply noclip to all BaseParts
+    NoclippingConnection = RunService.Stepped:Connect(function()
+        local character = player.Character
+        if not character then return end
+        
+        -- Loop through all parts and disable collisions
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = Clip == false and false or part.CanCollide
+            end
+        end
+    end)
+    
+    return "Noclip enabled"
 		end,
 		clip = function()
-			Clip = true
-			if NoclippingConnection then
-				NoclippingConnection:Disconnect()
-				NoclippingConnection = nil
-			end
-
-			local character = player.Character
-			if character then
-				for _, part in ipairs(character:GetDescendants()) do
-					if part:IsA("BasePart") and part.Name ~= "Left Leg" or part.Name ~= "Left Arm" or part.Name ~= "Right Leg" or part.Name ~= "Right Arm" then
-						part.CanCollide = true
-					end
-				end
-			end
+			    Clip = true
+    if NoclippingConnection then
+        NoclippingConnection:Disconnect()
+        NoclippingConnection = nil
+    end
+    
+    -- Re-enable collisions (optional, since Roblox does this automatically)
+    local character = player.Character
+    if character then
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
+        end
+    end
+    
+    return "Noclip disabled"
 		end,
 		kill = function()
 			return
