@@ -40,7 +40,6 @@ local validcmds = {
 	fly = true,
 	noclip = true,
 	clip = true,
-	kill = true,
 	saveinstance = true,
 	goto = true,
 	infyield = true,
@@ -51,6 +50,7 @@ local validcmds = {
 	rejoin = true,
 	fling = true,
 	unfling = true,
+	voidparts = true
 }
 
 local aliases = {
@@ -460,7 +460,6 @@ local function processCommand(fullInput)
 
 			return "Flinging "..targetPlayer.Name
 		end,
-
 		unfling = function()
 			flinging = false
 
@@ -500,6 +499,19 @@ local function processCommand(fullInput)
 			targetPlayer = nil
 
 			return "Stopped flinging"
+		end,
+		voidparts = function()
+			local count = 0
+			for _, part in pairs(workspace:GetDescendants()) do
+				if part:IsA("BasePart") and not part.Anchored and part.CanCollide then
+					part.CFrame = CFrame.new(0, -1e6, 0)
+					part.CanCollide = false
+					part.Transparency = 1
+					part.Anchored = true
+					count = count + 1
+				end
+			end
+			return count.." parts voided"
 		end
 	}
 
