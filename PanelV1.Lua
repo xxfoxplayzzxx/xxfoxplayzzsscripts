@@ -382,7 +382,7 @@ local function processCommand(fullInput)
 			local targetName = args:match("%S+") or ""
 			local targetPlayer = nil
 
-			-- Enable noclip immediately for both self-fling and player fling
+			-- Enable noclip immediately
 			processCommand("noclip")
 			wait(0.1) -- Ensure noclip applies
 
@@ -406,14 +406,6 @@ local function processCommand(fullInput)
 				bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
 				bambam.P = math.huge
 
-				-- Create death connection to clean up
-				if flingConnection then
-					flingConnection:Disconnect()
-				end
-				flingConnection = player.Character.Humanoid.Died:Connect(function()
-					processCommand("unfling")
-				end)
-
 				flinging = true
 				return "Flinging in place"
 			end
@@ -422,22 +414,10 @@ local function processCommand(fullInput)
 			if targetName:lower() == "random" then
 				local players = Players:GetPlayers()
 				if #players > 0 then
-					local candidates = {}
-					for _, p in pairs(players) do
-						if p ~= player then
-							table.insert(candidates, p)
-						end
-					end
-
-					if #candidates == 0 then
-						candidates = players
-					end
-
-					math.randomseed(tick())
-					targetPlayer = candidates[math.random(1, #candidates)]
+					targetPlayer = players[math.random(1, #players)]
 					targetName = targetPlayer.Name
 				else
-					return "No players found for random selection"
+					return "No players found"
 				end
 			else
 				for _, p in pairs(Players:GetPlayers()) do
@@ -449,25 +429,11 @@ local function processCommand(fullInput)
 			end
 
 			if not targetPlayer then
-				return "Player '"..targetName.."' not found"
+				return "Player not found"
 			end
 
-			if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-				return "Target player has no character"
-			end
-
-			if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-				return "Your character is not ready"
-			end
-
-			-- Store original position ONLY when targeting a player
+			-- Store original position
 			originalPosition = player.Character.HumanoidRootPart.CFrame
-
-			-- Stop any existing fling loop
-			if flingLoop then
-				flingLoop:Disconnect()
-				flingLoop = nil
-			end
 
 			-- Set up fling properties
 			local root = player.Character.HumanoidRootPart
@@ -487,100 +453,31 @@ local function processCommand(fullInput)
 			bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
 			bambam.P = math.huge
 
-			-- Create connections to monitor target
-			local targetDiedConnection = nil
-			local targetCharacterAddedConnection = nil
-
-			local function cleanUpTargetConnections()
-				if targetDiedConnection then
-					targetDiedConnection:Disconnect()
-					targetDiedConnection = nil
-				end
-				if targetCharacterAddedConnection then
-					targetCharacterAddedConnection:Disconnect()
-					targetCharacterAddedConnection = nil
-				end
-			end
-
-			local function setupTargetMonitoring()
-				cleanUpTargetConnections()
-
-				if targetPlayer.Character then
-					targetDiedConnection = targetPlayer.Character.Humanoid.Died:Connect(function()
-						processCommand("unfling")
-					end)
-				end
-
-				targetCharacterAddedConnection = targetPlayer.CharacterAdded:Connect(function(char)
-					wait(1) -- Wait for character to fully load
-					if char:FindFirstChild("HumanoidRootPart") then
-						-- Continue flinging the new character
-						setupTargetMonitoring()
-					else
-						processCommand("unfling")
-					end
-				end)
-			end
-
-			setupTargetMonitoring()
-
-			-- Create death connection to clean up
-			if flingConnection then
-				flingConnection:Disconnect()
-			end
-			flingConnection = player.Character.Humanoid.Died:Connect(function()
-				processCommand("unfling")
-			end)
-
-			-- Create fling loop with proper 1.5 second cycle
+			-- Create fling loop with automatic return after cycle
 			flinging = true
-			local lastPhaseChange = tick()
-			local isFlingPhase = true
+			local cycleStart = tick()
 
 			flingLoop = RunService.Heartbeat:Connect(function()
 				if not flinging then return end
 
-				-- Check if we still have valid references
-				if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+				-- Automatic return after 1.5 seconds
+				if tick() - cycleStart >= 1.5 then
 					processCommand("unfling")
 					return
 				end
 
-				local root = player.Character.HumanoidRootPart
-
-				-- Handle the 1.5 second cycle
-				if tick() - lastPhaseChange >= 1.5 then
-					isFlingPhase = not isFlingPhase
-					lastPhaseChange = tick()
-				end
-
-				if targetPlayer then
-					-- Check target validity
-					if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-						processCommand("unfling")
-						return
-					end
-
+				-- Continue flinging toward target
+				if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
 					local targetRoot = targetPlayer.Character.HumanoidRootPart
-
-					if isFlingPhase then
-						-- Fling phase
-						bambam.AngularVelocity = Vector3.new(0, 99999, 0)
-						root.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -2)
-					else
-						-- Move to target phase
-						bambam.AngularVelocity = Vector3.new(0, 0, 0)
-						root.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -5)
-					end
-				else
-					-- Just fling in place
+					root.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -3)
 					bambam.AngularVelocity = Vector3.new(0, 99999, 0)
+				else
+					processCommand("unfling")
 				end
 			end)
 
-			return "Flinging "..(targetPlayer and targetPlayer.Name or "in place")
+			return "Flinging "..targetPlayer.Name.." (auto-return in 1.5s)"
 		end,
-
 		unfling = function()
 			flinging = false
 
@@ -590,24 +487,8 @@ local function processCommand(fullInput)
 				flingLoop = nil
 			end
 
-			-- Clean up death connection
-			if flingConnection then
-				flingConnection:Disconnect()
-				flingConnection = nil
-			end
-
-			-- Clean up target monitoring connections
-			if targetDiedConnection then
-				targetDiedConnection:Disconnect()
-				targetDiedConnection = nil
-			end
-			if targetCharacterAddedConnection then
-				targetCharacterAddedConnection:Disconnect()
-				targetCharacterAddedConnection = nil
-			end
-
-			-- Only restore original position if we were targeting a player
-			if targetPlayer and originalPosition and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+			-- Return to original position if exists
+			if originalPosition and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
 				player.Character.HumanoidRootPart.CFrame = originalPosition
 			end
 			originalPosition = nil
