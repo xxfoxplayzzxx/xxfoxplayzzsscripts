@@ -385,6 +385,14 @@ UIS.InputBegan:Connect(function(inputObj, gpe)
 	end
 end)
 
+input.InputBegan:Connect(function(inputObj)
+    if inputObj.KeyCode == Enum.KeyCode.Tab and underlay.Text ~= "" then
+        input.Text = underlay.Text
+        -- Move cursor to end
+        input.CursorPosition = #input.Text + 1
+    end
+end)
+
 -- Click outside to close
 UIS.InputBegan:Connect(function(inputObj, gpe)
 	if gpe or not active or inputObj.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
