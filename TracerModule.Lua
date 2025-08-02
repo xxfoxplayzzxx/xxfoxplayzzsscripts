@@ -1,7 +1,6 @@
 -- Services
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
 
 -- Load ESP assets
@@ -17,12 +16,11 @@ end
 local ESPEnabled = false
 local TeamCheck = true -- Change to false to ignore teams
 local TracersEnabled = true
-local BoxesEnabled = true
 
--- Colors
-local EnemyColor = Color3.fromRGB(255, 60, 60)
-local FriendlyColor = Color3.fromRGB(60, 255, 60)
-local NeutralColor = Color3.fromRGB(255, 255, 60)
+-- Colors (using standard Color3 values instead of Studio settings)
+local EnemyColor = Color3.fromRGB(255, 60, 60)    -- Red
+local FriendlyColor = Color3.fromRGB(60, 255, 60) -- Green
+local NeutralColor = Color3.fromRGB(255, 255, 60) -- Yellow
 
 -- Track all ESP instances
 local ESPInstances = {}
@@ -66,7 +64,7 @@ local function CreateESP(player)
             esp.Tracer.Parent = Camera
         end
         
-        -- Update colors
+        -- Update colors based on team
         local function UpdateColors()
             local color
             if TeamCheck and player.Team and LocalPlayer.Team then
@@ -98,8 +96,10 @@ local function CreateESP(player)
             end
         end))
         
-        table.insert(esp.Connections, player:GetPropertyChangedSignal("Team"):Connect(UpdateColors))
-        table.insert(esp.Connections, LocalPlayer:GetPropertyChangedSignal("Team"):Connect(UpdateColors))
+        if TeamCheck then
+            table.insert(esp.Connections, player:GetPropertyChangedSignal("Team"):Connect(UpdateColors))
+            table.insert(esp.Connections, LocalPlayer:GetPropertyChangedSignal("Team"):Connect(UpdateColors))
+        end
         
         UpdateColors()
     end
@@ -142,27 +142,28 @@ local function ToggleESP()
         end
         
         -- Connect to new players
-        table.insert(ESPInstances.Connections, Players.PlayerAdded:Connect(function(player)
+        ESPInstances.PlayerAdded = Players.PlayerAdded:Connect(function(player)
             CreateESP(player)
-        end))
+        end)
         
         -- Connect to leaving players
-        table.insert(ESPInstances.Connections, Players.PlayerRemoving:Connect(function(player)
+        ESPInstances.PlayerRemoving = Players.PlayerRemoving:Connect(function(player)
             RemoveESP(player)
-        end))
+        end)
     else
         -- Disable all ESP
         for player in pairs(ESPInstances) do
-            if player ~= "Connections" then
+            if type(player) == "userdata" then -- Only actual player instances
                 RemoveESP(player)
             end
         end
         
         -- Clean up connections
-        if ESPInstances.Connections then
-            for _, conn in pairs(ESPInstances.Connections) do
-                conn:Disconnect()
-            end
+        if ESPInstances.PlayerAdded then
+            ESPInstances.PlayerAdded:Disconnect()
+        end
+        if ESPInstances.PlayerRemoving then
+            ESPInstances.PlayerRemoving:Disconnect()
         end
     end
 end
@@ -175,16 +176,7 @@ UIS.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- Auto-cleanup if script gets destroyed
-local scriptConnection
-scriptConnection = game:GetService("ScriptContext").DescendantRemoving:Connect(function(descendant)
-    if descendant == script then
-        scriptConnection:Disconnect()
-        ToggleESP() -- Turn off ESP if script is removed
-    end
-end)
-
--- Notification
+-- Initial notification
 local function Notify(message)
     print("[ESP] "..message)
     if not game:GetService("StarterGui"):GetCoreGuiEnabled(Enum.CoreGuiType.Chat) then
@@ -197,3 +189,16 @@ local function Notify(message)
 end
 
 Notify("ESP loaded! Press F1 to toggle")
+
+-- Auto-cleanup
+local function Cleanup()
+    if ESPEnabled then
+        ToggleESP() -- Turn off ESP before cleanup
+    end
+end
+
+game:GetService("ScriptContext").DescendantRemoving:Connect(function(descendant)
+    if descendant == script then
+        Cleanup()
+    end
+end)
