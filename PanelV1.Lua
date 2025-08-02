@@ -382,14 +382,12 @@ local function processCommand(fullInput)
 			local targetName = args:match("%S+") or ""
 			local targetPlayer = nil
 
+			-- Enable noclip immediately for both self-fling and player fling
+			processCommand("noclip")
+			wait(0.1) -- Ensure noclip applies
+
 			-- If no target specified, fling yourself in place
 			if targetName == "" then
-				-- Store original position
-				originalPosition = player.Character.HumanoidRootPart.CFrame
-
-				-- Enable noclip
-				processCommand("noclip")
-
 				-- Set up fling properties
 				local root = player.Character.HumanoidRootPart
 				for _, child in pairs(player.Character:GetDescendants()) do
@@ -420,7 +418,7 @@ local function processCommand(fullInput)
 				return "Flinging in place"
 			end
 
-			-- Handle random selection
+			-- Handle player targeting
 			if targetName:lower() == "random" then
 				local players = Players:GetPlayers()
 				if #players > 0 then
@@ -454,7 +452,6 @@ local function processCommand(fullInput)
 				return "Player '"..targetName.."' not found"
 			end
 
-			-- Validate characters
 			if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
 				return "Target player has no character"
 			end
@@ -462,21 +459,15 @@ local function processCommand(fullInput)
 			if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
 				return "Your character is not ready"
 			end
-			
-			
-			originalPosition = nil
-			if targetPlayer ~= nil then
-				originalPosition = player.Character.HumanoidRootPart.CFrame
-			end
+
+			-- Store original position ONLY when targeting a player
+			originalPosition = player.Character.HumanoidRootPart.CFrame
 
 			-- Stop any existing fling loop
 			if flingLoop then
 				flingLoop:Disconnect()
 				flingLoop = nil
 			end
-
-			-- Enable noclip
-			processCommand("noclip")
 
 			-- Set up fling properties
 			local root = player.Character.HumanoidRootPart
@@ -541,8 +532,11 @@ local function processCommand(fullInput)
 				processCommand("unfling")
 			end)
 
-			-- Create fling loop
+			-- Create fling loop with proper 1.5 second cycle
 			flinging = true
+			local lastPhaseChange = tick()
+			local isFlingPhase = true
+
 			flingLoop = RunService.Heartbeat:Connect(function()
 				if not flinging then return end
 
@@ -554,6 +548,12 @@ local function processCommand(fullInput)
 
 				local root = player.Character.HumanoidRootPart
 
+				-- Handle the 1.5 second cycle
+				if tick() - lastPhaseChange >= 1.5 then
+					isFlingPhase = not isFlingPhase
+					lastPhaseChange = tick()
+				end
+
 				if targetPlayer then
 					-- Check target validity
 					if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
@@ -563,12 +563,7 @@ local function processCommand(fullInput)
 
 					local targetRoot = targetPlayer.Character.HumanoidRootPart
 
-					-- Alternate between flinging and moving to target
-					local now = tick()
-					local cycleTime = 1.5
-					local phase = (now % cycleTime) / cycleTime
-
-					if phase < 0.5 then
+					if isFlingPhase then
 						-- Fling phase
 						bambam.AngularVelocity = Vector3.new(0, 99999, 0)
 						root.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -2)
@@ -611,11 +606,11 @@ local function processCommand(fullInput)
 				targetCharacterAddedConnection = nil
 			end
 
-			-- Restore original position if available
-			if originalPosition and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+			-- Only restore original position if we were targeting a player
+			if targetPlayer and originalPosition and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
 				player.Character.HumanoidRootPart.CFrame = originalPosition
-				originalPosition = nil
 			end
+			originalPosition = nil
 
 			-- Clean up fling effects
 			local character = player.Character
@@ -641,9 +636,10 @@ local function processCommand(fullInput)
 			end
 
 			processCommand("clip") -- Re-enable clipping
+			targetPlayer = nil
 
 			return "Stopped flinging"
-		end,
+		end
 	}
 
 	for cmd in fullInput:gmatch("([^,]+)") do
