@@ -475,66 +475,66 @@ end,
 unfling = function()
     flinging = false
 
+    -- Disconnect the fling loop first
     if flingLoop then
         flingLoop:Disconnect()
         flingLoop = nil
     end
 
-    -- Get character reference first
+    -- Get character and root part
     local character = player.Character
     if not character then return end
-    
-    -- First anchor the character to freeze all physics
     local rootPart = character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+    -- STEP 1: ANCHOR CHARACTER (Freeze in place)
     if rootPart then
         rootPart.Anchored = true
     end
-    
-    -- Clear all movement-related properties
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        humanoid.PlatformStand = false
-        humanoid.AutoRotate = true
-    end
-    
-    -- Clear all velocity and rotation effects
-    for _, child in pairs(character:GetDescendants()) do
-        if child:IsA("BasePart") then
-            child.Velocity = Vector3.new()
-            child.RotVelocity = Vector3.new()
-            
-            -- Clear any custom physics effects
-            for _, v in pairs(child:GetChildren()) do
-                if v:IsA("BodyVelocity") or v:IsA("BodyAngularVelocity") or v:IsA("BodyForce") or v:IsA("BodyThrust") then
+
+    -- STEP 2: CLEAR ALL PHYSICS EFFECTS
+    for _, part in pairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Velocity = Vector3.new(0, 0, 0)
+            part.RotVelocity = Vector3.new(0, 0, 0)
+            -- Destroy any leftover physics objects
+            for _, v in pairs(part:GetChildren()) do
+                if v:IsA("BodyVelocity") or v:IsA("BodyAngularVelocity") or v:IsA("BodyForce") then
                     v:Destroy()
                 end
             end
         end
     end
-    
-    -- Wait a frame for physics to update
-    RunService.Heartbeat:Wait()
-    
-    -- If we had an original position, teleport back
+
+    -- STEP 3: RESET HUMANOID
+    if humanoid then
+        humanoid.PlatformStand = false
+        humanoid.AutoRotate = true
+        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+    end
+
+    -- STEP 4: WAIT FOR STABILIZATION
+    task.wait(0.2) -- Short delay to let physics settle
+
+    -- STEP 5: TELEPORT BACK TO ORIGINAL POSITION (if saved)
     if originalPosition and rootPart then
         rootPart.CFrame = originalPosition
-        RunService.Heartbeat:Wait() -- Wait another frame
+        task.wait(0.1) -- Extra delay after teleporting
     end
-    
-    -- Final cleanup
+
+    -- STEP 6: FINAL CLEANUP
     if rootPart then
-        -- Unanchor after everything is settled
-        rootPart.Anchored = false
-        
         -- Clear any remaining fling effects
         for _, v in pairs(rootPart:GetChildren()) do
             if v.Name == "ADONIS_FLIGHT_POSITION" then
                 v:Destroy()
             end
         end
+        -- Unanchor only after everything is stable
+        rootPart.Anchored = false
     end
-    
-    processCommand("clip")
+
+    -- Reset variables
     targetPlayer = nil
     originalPosition = nil
 
