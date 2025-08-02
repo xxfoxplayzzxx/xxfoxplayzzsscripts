@@ -462,9 +462,12 @@ local function processCommand(fullInput)
 			if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
 				return "Your character is not ready"
 			end
-
-			-- Store original position
-			originalPosition = player.Character.HumanoidRootPart.CFrame
+			
+			
+			originalPosition = nil
+			if targetPlayer ~= nil then
+				originalPosition = player.Character.HumanoidRootPart.CFrame
+			end
 
 			-- Stop any existing fling loop
 			if flingLoop then
