@@ -278,7 +278,7 @@ local function processCommand(fullInput)
 			local character = player.Character
 			if character then
 				for _, part in ipairs(character:GetDescendants()) do
-					if part:IsA("BasePart") then
+					if part:IsA("BasePart") and part.Name ~= "Left Leg" or part.Name ~= "Left Arm" or part.Name ~= "Right Leg" or part.Name ~= "Right Arm" then
 						part.CanCollide = true
 					end
 				end
@@ -462,6 +462,15 @@ local function processCommand(fullInput)
 
 				-- Automatic return after 1.5 seconds
 				if tick() - cycleStart >= 1.5 then
+					-- Clear all velocity BEFORE returning to position
+					for _, child in pairs(player.Character:GetDescendants()) do
+						if child:IsA("BasePart") then
+							child.Velocity = Vector3.new(0, 0, 0)
+							child.RotVelocity = Vector3.new(0, 0, 0)
+						end
+					end
+					wait(0.05) -- Small delay to ensure physics settles
+
 					processCommand("unfling")
 					return
 				end
@@ -478,6 +487,7 @@ local function processCommand(fullInput)
 
 			return "Flinging "..targetPlayer.Name.." (auto-return in 1.5s)"
 		end,
+
 		unfling = function()
 			flinging = false
 
@@ -485,6 +495,17 @@ local function processCommand(fullInput)
 			if flingLoop then
 				flingLoop:Disconnect()
 				flingLoop = nil
+			end
+
+			-- Clear all velocity before returning
+			if player.Character then
+				for _, child in pairs(player.Character:GetDescendants()) do
+					if child:IsA("BasePart") then
+						child.Velocity = Vector3.new(0, 0, 0)
+						child.RotVelocity = Vector3.new(0, 0, 0)
+					end
+				end
+				wait(0.05)
 			end
 
 			-- Return to original position if exists
