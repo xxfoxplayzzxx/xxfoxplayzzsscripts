@@ -219,7 +219,7 @@ local function processCommand(fullInput)
 		fly = function()
 			if fly == false then
 				fly = true
-				loadstring(game:HttpGet("https://pastebin.com/raw/uPsBJ0s7"))()
+				loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/main/Flight.Lua"))()
 				return "Flight mode activated"
 			else
 				return "Flight already actived?"
