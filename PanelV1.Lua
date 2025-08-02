@@ -426,6 +426,11 @@ local function processCommand(fullInput)
 			bambam.MaxTorque = Vector3.new(math.huge,math.huge,math.huge)
 			bambam.P = math.huge
 
+			-- Immediate teleport INSIDE the target
+			if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+				root.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+			end
+
 			flinging = true
 			local cycleStart = tick()
 
@@ -445,15 +450,15 @@ local function processCommand(fullInput)
 				end
 
 				if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-					local targetRoot = targetPlayer.Character.HumanoidRootPart
-					root.CFrame = targetRoot.CFrame * CFrame.new(0,0,-3)
+					-- Maintain position INSIDE the target
+					root.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
 					bambam.AngularVelocity = Vector3.new(0,99999,0)
 				else
 					processCommand("unfling")
 				end
 			end)
 
-			return
+			return "Flinging "..targetPlayer.Name
 		end,
 
 		unfling = function()
