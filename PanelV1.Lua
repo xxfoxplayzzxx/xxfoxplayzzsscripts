@@ -23,6 +23,10 @@ local active = false
 local fly = false
 local Clip = true
 local NoclippingConnection = nil
+local flinging = false
+local flingLoop = nil
+local originalPosition = nil
+local flingConnection = nil
 
 -- Sounds
 local SF = gui:WaitForChild("SFX"):WaitForChild("Default")
@@ -45,6 +49,8 @@ local validcmds = {
 	unsit = true,
 	reset = true,
 	rejoin = true,
+	fling = true,
+	unfling = true,
 }
 
 local aliases = {
@@ -371,6 +377,165 @@ local function processCommand(fullInput)
 			else
 				TeleportService:TeleportToPlaceInstance(PlaceId, JobId, Players.LocalPlayer)
 			end
+		end,
+		fling = function(args)
+			local targetName = args:match("%S+") or ""
+			local targetPlayer = nil
+
+			-- Handle random selection
+			if targetName:lower() == "random" then
+				local players = Players:GetPlayers()
+				if #players > 0 then
+					local candidates = {}
+					for _, p in pairs(players) do
+						if p ~= player then
+							table.insert(candidates, p)
+						end
+					end
+
+					if #candidates == 0 then
+						candidates = players
+					end
+
+					math.randomseed(tick())
+					targetPlayer = candidates[math.random(1, #candidates)]
+					targetName = targetPlayer.Name
+				else
+					return "No players found for random selection"
+				end
+			else
+				for _, p in pairs(Players:GetPlayers()) do
+					if string.find(string.lower(p.Name), string.lower(targetName)) then
+						targetPlayer = p
+						break
+					end
+				end
+			end
+
+			if not targetPlayer then
+				return "Player '"..targetName.."' not found"
+			end
+
+			if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+				return "Target player has no character"
+			end
+
+			if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+				return "Your character is not ready"
+			end
+
+			-- Store original position
+			originalPosition = player.Character.HumanoidRootPart.CFrame
+
+			-- Stop any existing fling loop
+			if flingLoop then
+				flingLoop:Disconnect()
+				flingLoop = nil
+			end
+
+			-- Enable noclip
+			processCommand("noclip")
+
+			-- Set up fling properties
+			local root = player.Character.HumanoidRootPart
+			for _, child in pairs(player.Character:GetDescendants()) do
+				if child:IsA("BasePart") then
+					child.CustomPhysicalProperties = PhysicalProperties.new(math.huge, 0.3, 0.5)
+					child.CanCollide = false
+					child.Massless = true
+					child.Velocity = Vector3.new(0, 0, 0)
+				end
+			end
+
+			local bambam = Instance.new("BodyAngularVelocity")
+			bambam.Name = "FlingVelocity"
+			bambam.Parent = root
+			bambam.AngularVelocity = Vector3.new(0, 99999, 0)
+			bambam.MaxTorque = Vector3.new(0, math.huge, 0)
+			bambam.P = math.huge
+
+			-- Create death connection to clean up
+			if flingConnection then
+				flingConnection:Disconnect()
+			end
+			flingConnection = player.Character.Humanoid.Died:Connect(function()
+				processCommand("unfling")
+			end)
+
+			-- Create fling loop
+			flinging = true
+			flingLoop = RunService.Heartbeat:Connect(function()
+				if not flinging or not targetPlayer or not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+					processCommand("unfling")
+					return
+				end
+
+				-- Alternate between flinging and moving to target
+				local now = tick()
+				local cycleTime = 3 -- seconds per cycle
+				local phase = (now % cycleTime) / cycleTime
+
+				if phase < 0.5 then
+					-- Fling phase
+					bambam.AngularVelocity = Vector3.new(0, 99999, 0)
+					root.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -2)
+				else
+					-- Move to target phase
+					bambam.AngularVelocity = Vector3.new(0, 0, 0)
+					root.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -5)
+				end
+			end)
+
+			return "Flinging "..targetPlayer.Name
+		end,
+
+		unfling = function()
+			flinging = false
+
+			-- Stop the fling loop
+			if flingLoop then
+				flingLoop:Disconnect()
+				flingLoop = nil
+			end
+
+			-- Clean up death connection
+			if flingConnection then
+				flingConnection:Disconnect()
+				flingConnection = nil
+			end
+
+			-- Restore original position if available
+			if originalPosition and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+				player.Character.HumanoidRootPart.CFrame = originalPosition
+				originalPosition = nil
+			end
+
+			-- Clean up fling effects
+			local character = player.Character
+			if character then
+				-- Remove BodyAngularVelocity
+				local root = character:FindFirstChild("HumanoidRootPart")
+				if root then
+					for _, v in pairs(root:GetChildren()) do
+						if v.Name == "FlingVelocity" then
+							v:Destroy()
+						end
+					end
+				end
+
+				-- Reset part properties
+				for _, child in pairs(character:GetDescendants()) do
+					if child:IsA("BasePart") then
+						child.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5)
+						child.CanCollide = true
+						child.Massless = false
+					end
+				end
+			end
+
+			processCommand("clip") -- Re-enable clipping
+
+			return "Stopped flinging"
 		end
 	}
 
