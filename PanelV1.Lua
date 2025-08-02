@@ -240,16 +240,7 @@ local function processCommand(fullInput)
 		noclip = function()
 			local character = player.Character
 			if not character then return end
-			local humanoid = character:FindFirstChildOfClass("Humanoid")
-			if not humanoid then return end
-
-			local partsToCheck
-			if humanoid.RigType == Enum.HumanoidRigType.R6 then
-				partsToCheck = {"Head", "Torso", "HumanoidRootPart"}
-			else
-				partsToCheck = {"UpperTorso", "LowerTorso", "HumanoidRootPart"}
-			end
-
+			partsToCheck = {"UpperTorso", "LowerTorso", "Head", "Torso", "HumanoidRootPart"}
 			for _, name in ipairs(partsToCheck) do
 				local part = character:FindFirstChild(name)
 				if part and part:IsA("BasePart") then
@@ -260,16 +251,7 @@ local function processCommand(fullInput)
 		clip = function()
 			local character = player.Character
 			if not character then return end
-			local humanoid = character:FindFirstChildOfClass("Humanoid")
-			if not humanoid then return end
-
-			local partsToCheck
-			if humanoid.RigType == Enum.HumanoidRigType.R6 then
-				partsToCheck = {"Head", "Torso", "HumanoidRootPart"}
-			else
-				partsToCheck = {"UpperTorso", "LowerTorso", "HumanoidRootPart"}
-			end
-
+			partsToCheck = {"UpperTorso", "LowerTorso", "Torso", "HumanoidRootPart"}
 			for _, name in ipairs(partsToCheck) do
 				local part = character:FindFirstChild(name)
 				if part and part:IsA("BasePart") then
