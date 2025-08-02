@@ -35,7 +35,7 @@ local validcmds = {
 	saveinstance = true,
 	goto = true,
 	infyield = true,
-	esp = true
+	tracers = true
 }
 
 -- Vibrant color scheme for overlay
@@ -169,21 +169,14 @@ local function updateAutocomplete()
     local hasExistingCommas = fullText:sub(1, -#lastSegment - 1):find(",")
     local prefix = hasExistingCommas and fullText:sub(1, -#lastSegment - 1) or ""
 
-    -- Find best match for command
+    -- Find best match for command (only if starting letters match)
     local bestCmdMatch, bestCmdScore = nil, 0
     for cmdName in pairs(validcmds) do
-        -- Check for exact match first
-        if cmd:lower() == cmdName:lower() then
+        -- Only suggest if the typed letters match the beginning of the command
+        if cmdName:lower():sub(1, #cmd) == cmd:lower() then
             bestCmdMatch = cmdName
             bestCmdScore = 1.0
             break
-        end
-        
-        -- Otherwise do fuzzy matching
-        local score = StringUtils.matchScore(cmdName:lower(), cmd:lower())
-        if score > bestCmdScore then
-            bestCmdMatch = cmdName
-            bestCmdScore = score
         end
     end
 
@@ -196,18 +189,11 @@ local function updateAutocomplete()
             bestPlayerScore = 1.0
         else
             for _, player in pairs(Players:GetPlayers()) do
-                -- Check for exact match first
-                if args:lower() == player.Name:lower() then
+                -- Only suggest if the typed letters match the beginning of the name
+                if player.Name:lower():sub(1, #args) == args:lower() then
                     bestPlayerMatch = player.Name
                     bestPlayerScore = 1.0
                     break
-                end
-                
-                -- Otherwise do fuzzy matching
-                local score = StringUtils.matchScore(player.Name:lower(), args:lower())
-                if score > bestPlayerScore then
-                    bestPlayerMatch = player.Name
-                    bestPlayerScore = score
                 end
             end
         end
@@ -222,23 +208,14 @@ local function updateAutocomplete()
         underlay.Text = prefix .. bestCmdMatch
         underlay.TextTransparency = 0.5
         
-        -- If it's a perfect match (just incomplete), add a space for arguments
-        if bestCmdMatch:lower():sub(1, #cmd) == cmd:lower() and #cmd < #bestCmdMatch then
+        -- Add a space for arguments if it's a perfect match
+        if bestCmdMatch:lower():sub(1, #cmd) == cmd:lower() then
             underlay.Text = underlay.Text .. " "
         end
     elseif args ~= "" and bestPlayerMatch and bestPlayerScore > 0.5 then
         -- Suggest player completion
         underlay.Text = prefix .. (bestCmdMatch or cmd) .. " " .. bestPlayerMatch
         underlay.TextTransparency = 0.5
-        
-        -- If it's a perfect match (just incomplete), don't show anything
-        if bestPlayerMatch:lower() == args:lower() then
-            underlay.Text = ""
-        end
-    elseif bestCmdMatch and bestCmdScore > 0.3 then
-        -- Suggest fuzzy command match
-        underlay.Text = prefix .. bestCmdMatch
-        underlay.TextTransparency = 0.7  -- More transparent to indicate weaker match
     end
 end
 
@@ -333,7 +310,7 @@ local function processCommand(fullInput)
 
 			return "Teleported to "..targetPlayer.Name .. (targetName:lower() == "random" and " (random)" or "")
 		end,
-		esp = function()
+		tracers = function()
 			loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/main/TracerModule.Lua"))()
 			return
 		end
