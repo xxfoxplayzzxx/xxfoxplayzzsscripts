@@ -350,7 +350,7 @@ local function processCommand(fullInput)
 			end
 
 			-- Teleport to target (with slight offset)
-			player.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(3, 1, 0)
+			player.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
 
 			return
 		end,
@@ -382,142 +382,105 @@ local function processCommand(fullInput)
 			local targetName = args:match("%S+") or ""
 			local targetPlayer = nil
 
-			-- Enable noclip immediately
 			processCommand("noclip")
-			wait(0.1) -- Ensure noclip applies
+			wait(0.1)
 
-			-- If no target specified, fling yourself in place
 			if targetName == "" then
-				-- Set up fling properties
-				local root = player.Character.HumanoidRootPart
-				for _, child in pairs(player.Character:GetDescendants()) do
-					if child:IsA("BasePart") then
-						child.CustomPhysicalProperties = PhysicalProperties.new(math.huge, 0.3, 0.5)
-						child.CanCollide = false
-						child.Massless = true
-						child.Velocity = Vector3.new(0, 0, 0)
-					end
-				end
-
 				local bambam = Instance.new("BodyAngularVelocity")
 				bambam.Name = "ADONIS_FLIGHT_POSITION"
-				bambam.Parent = root
-				bambam.AngularVelocity = Vector3.new(0, 99999, 0)
-				bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+				bambam.Parent = player.Character.HumanoidRootPart
+				bambam.AngularVelocity = Vector3.new(0,99999,0)
+				bambam.MaxTorque = Vector3.new(math.huge,math.huge,math.huge)
 				bambam.P = math.huge
 
 				flinging = true
 				return "Flinging in place"
 			end
 
-			-- Handle player targeting
 			if targetName:lower() == "random" then
 				local players = Players:GetPlayers()
 				if #players > 0 then
-					targetPlayer = players[math.random(1, #players)]
+					targetPlayer = players[math.random(1,#players)]
 					targetName = targetPlayer.Name
 				else
 					return "No players found"
 				end
 			else
 				for _, p in pairs(Players:GetPlayers()) do
-					if string.find(string.lower(p.Name), string.lower(targetName)) then
+					if string.find(string.lower(p.Name),string.lower(targetName)) then
 						targetPlayer = p
 						break
 					end
 				end
 			end
 
-			if not targetPlayer then
-				return "Player not found"
-			end
+			if not targetPlayer then return "Player not found" end
 
-			-- Store original position
 			originalPosition = player.Character.HumanoidRootPart.CFrame
-
-			-- Set up fling properties
 			local root = player.Character.HumanoidRootPart
-			for _, child in pairs(player.Character:GetDescendants()) do
-				if child:IsA("BasePart") then
-					child.CustomPhysicalProperties = PhysicalProperties.new(math.huge, 0.3, 0.5)
-					child.CanCollide = false
-					child.Massless = true
-					child.Velocity = Vector3.new(0, 0, 0)
-				end
-			end
 
 			local bambam = Instance.new("BodyAngularVelocity")
 			bambam.Name = "ADONIS_FLIGHT_POSITION"
 			bambam.Parent = root
-			bambam.AngularVelocity = Vector3.new(0, 99999, 0)
-			bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+			bambam.AngularVelocity = Vector3.new(0,99999,0)
+			bambam.MaxTorque = Vector3.new(math.huge,math.huge,math.huge)
 			bambam.P = math.huge
 
-			-- Create fling loop with automatic return after cycle
 			flinging = true
 			local cycleStart = tick()
 
 			flingLoop = RunService.Heartbeat:Connect(function()
 				if not flinging then return end
 
-				-- Automatic return after 1.5 seconds
 				if tick() - cycleStart >= 1.5 then
-					-- Clear all velocity BEFORE returning to position
 					for _, child in pairs(player.Character:GetDescendants()) do
 						if child:IsA("BasePart") then
-							child.Velocity = Vector3.new(0, 0, 0)
-							child.RotVelocity = Vector3.new(0, 0, 0)
+							child.Velocity = Vector3.new(0,0,0)
+							child.RotVelocity = Vector3.new(0,0,0)
 						end
 					end
-					wait(0.05) -- Small delay to ensure physics settles
-
+					wait(0.05)
 					processCommand("unfling")
 					return
 				end
 
-				-- Continue flinging toward target
 				if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
 					local targetRoot = targetPlayer.Character.HumanoidRootPart
-					root.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -3)
-					bambam.AngularVelocity = Vector3.new(0, 99999, 0)
+					root.CFrame = targetRoot.CFrame * CFrame.new(0,0,-3)
+					bambam.AngularVelocity = Vector3.new(0,99999,0)
 				else
 					processCommand("unfling")
 				end
 			end)
 
-			return "Flinging "..targetPlayer.Name.." (auto-return in 1.5s)"
+			return
 		end,
 
 		unfling = function()
 			flinging = false
 
-			-- Stop the fling loop
 			if flingLoop then
 				flingLoop:Disconnect()
 				flingLoop = nil
 			end
 
-			-- Clear all velocity before returning
 			if player.Character then
 				for _, child in pairs(player.Character:GetDescendants()) do
 					if child:IsA("BasePart") then
-						child.Velocity = Vector3.new(0, 0, 0)
-						child.RotVelocity = Vector3.new(0, 0, 0)
+						child.Velocity = Vector3.new(0,0,0)
+						child.RotVelocity = Vector3.new(0,0,0)
 					end
 				end
 				wait(0.05)
 			end
 
-			-- Return to original position if exists
 			if originalPosition and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
 				player.Character.HumanoidRootPart.CFrame = originalPosition
 			end
 			originalPosition = nil
 
-			-- Clean up fling effects
 			local character = player.Character
 			if character then
-				-- Remove BodyAngularVelocity
 				local root = character:FindFirstChild("HumanoidRootPart")
 				if root then
 					for _, v in pairs(root:GetChildren()) do
@@ -526,18 +489,9 @@ local function processCommand(fullInput)
 						end
 					end
 				end
-
-				-- Reset part properties
-				for _, child in pairs(character:GetDescendants()) do
-					if child:IsA("BasePart") then
-						child.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5)
-						child.CanCollide = true
-						child.Massless = false
-					end
-				end
 			end
 
-			processCommand("clip") -- Re-enable clipping
+			processCommand("clip")
 			targetPlayer = nil
 
 			return "Stopped flinging"
