@@ -232,56 +232,63 @@ local function processCommand(fullInput)
 			if fly == false then
 				fly = true
 				loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/main/Flight.Lua"))()
-				return "Flight mode activated"
+				return
 			else
-				return "Flight already actived?"
+				return
 			end
 		end,
 		noclip = function()
 			local character = player.Character
 			if not character then return end
-			local partsToCheck = {}
-			if character:FindFirstChildOfClass("Humanoid").RigType == "R6" then
-				local partsToCheck = {"Head", "Torso", "HumanoidRootPart"}
+			local humanoid = character:FindFirstChildOfClass("Humanoid")
+			if not humanoid then return end
+
+			local partsToCheck
+			if humanoid.RigType == Enum.HumanoidRigType.R6 then
+				partsToCheck = {"Head", "Torso", "HumanoidRootPart"}
 			else
-				local partsToCheck = {"UpperTorso", "LowerTorso", "HumanoidRootPart"}
+				partsToCheck = {"UpperTorso", "LowerTorso", "HumanoidRootPart"}
 			end
+
 			for _, name in ipairs(partsToCheck) do
 				local part = character:FindFirstChild(name)
 				if part and part:IsA("BasePart") then
 					part.CanCollide = false
 				end
 			end
-			return
 		end,
 		clip = function()
 			local character = player.Character
 			if not character then return end
-			local partsToCheck = {}
-			if character:FindFirstChildOfClass("Humanoid").RigType == "R6" then
-				local partsToCheck = {"Head", "Torso", "HumanoidRootPart"}
+			local humanoid = character:FindFirstChildOfClass("Humanoid")
+			if not humanoid then return end
+
+			local partsToCheck
+			if humanoid.RigType == Enum.HumanoidRigType.R6 then
+				partsToCheck = {"Head", "Torso", "HumanoidRootPart"}
 			else
-				local partsToCheck = {"UpperTorso", "LowerTorso", "HumanoidRootPart"}
+				partsToCheck = {"UpperTorso", "LowerTorso", "HumanoidRootPart"}
 			end
+
 			for _, name in ipairs(partsToCheck) do
 				local part = character:FindFirstChild(name)
 				if part and part:IsA("BasePart") then
 					part.CanCollide = true
 				end
 			end
-			return
 		end,
+
 		kill = function()
-			return "this does nothing yet lol"
+			return
 		end,
 		saveinstance = function()
 			local synsaveinstance = loadstring(game:HttpGet("https://raw.githubusercontent.com/luau/SynSaveInstance/main/saveinstance.luau"))()
 			synsaveinstance({mode="full", ShowStatus=true})
-			return "hol up, this might take a while"
+			return
 		end,
 		infyield = function()
 			loadstring(game:HttpGet('https://raw.githubusercontent.com/DarkNetworks/Infinite-Yield/main/latest.lua'))()
-			return "Tried to load Infinite Yield"
+			return
 		end,
 		goto = function(args)
 			local targetName = args:match("%S+") or ""
@@ -306,7 +313,7 @@ local function processCommand(fullInput)
 					targetPlayer = candidates[math.random(1, #candidates)]
 					targetName = targetPlayer.Name
 				else
-					return "No players found"
+					return
 				end
 			else
 				for _, player in pairs(Players:GetPlayers()) do
@@ -339,7 +346,7 @@ local function processCommand(fullInput)
 			-- Teleport to target (with slight offset)
 			player.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(3, 1, 0)
 
-			return "Teleported to "..targetPlayer.Name .. (targetName:lower() == "random" and " (random)" or "")
+			return
 		end,
 		tracers = function()
 			loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/main/TracerModule.Lua"))()
