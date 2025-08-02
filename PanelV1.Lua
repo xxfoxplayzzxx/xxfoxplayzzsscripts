@@ -187,7 +187,6 @@ local function updateAutocomplete()
 	-- Find best match for command (only if starting letters match)
 	local bestCmdMatch, bestCmdScore = nil, 0
 	for cmdName in pairs(validcmds) do
-		-- Only suggest if the typed letters match the beginning of the command
 		if cmdName:lower():sub(1, #cmd) == cmd:lower() then
 			bestCmdMatch = cmdName
 			bestCmdScore = 1.0
@@ -195,16 +194,13 @@ local function updateAutocomplete()
 		end
 	end
 
-	-- Find best match for player (if we have arguments)
 	local bestPlayerMatch, bestPlayerScore = nil, 0
 	if args ~= "" then
-		-- Check for "random" keyword
 		if args:lower() == "rand" or args:lower() == "rando" or args:lower() == "random" then
 			bestPlayerMatch = "random"
 			bestPlayerScore = 1.0
 		else
 			for _, player in pairs(Players:GetPlayers()) do
-				-- Only suggest if the typed letters match the beginning of the name
 				if player.Name:lower():sub(1, #args) == args:lower() then
 					bestPlayerMatch = player.Name
 					bestPlayerScore = 1.0
@@ -214,21 +210,16 @@ local function updateAutocomplete()
 		end
 	end
 
-	-- If we have an exact command match with no arguments, auto-complete it
 	if args == "" and bestCmdMatch and bestCmdMatch:lower() == cmd:lower() then
-		-- Don't show suggestion since it's already complete
 		underlay.Text = ""
 	elseif args == "" and bestCmdMatch and bestCmdScore > 0.5 then
-		-- Suggest command completion
 		underlay.Text = prefix .. bestCmdMatch
 		underlay.TextTransparency = 0.5
 
-		-- Add a space for arguments if it's a perfect match
 		if bestCmdMatch:lower():sub(1, #cmd) == cmd:lower() then
 			underlay.Text = underlay.Text .. " "
 		end
 	elseif args ~= "" and bestPlayerMatch and bestPlayerScore > 0.5 then
-		-- Suggest player completion
 		underlay.Text = prefix .. (bestCmdMatch or cmd) .. " " .. bestPlayerMatch
 		underlay.TextTransparency = 0.5
 	end
@@ -250,7 +241,7 @@ local function processCommand(fullInput)
 				if not character then return end
 				for _, part in ipairs(character:GetDescendants()) do
 					if part:IsA("BasePart") then
-						part.CanCollide = Clip == false or part.CanCollide
+						part.CanCollide = Clip == false and false or part.CanCollide
 					end
 				end
 			end)
@@ -299,26 +290,35 @@ local function processCommand(fullInput)
 
 				local inputBeganConn, inputEndedConn, preRenderConn
 				local bodyGyro, alignPos, humanoid, hrp
-				local charAddedConn
+				local charAddedConn, charRemovingConn
 
-				local function disconnectFlight()
+				local function toggleFlight()
+					if not alignPos or not bodyGyro or not humanoid then return end
+
+					if alignPos.Enabled then
+						-- Pause flight but keep systems active
+						alignPos.Enabled = false
+						bodyGyro.MaxTorque = Vector3.new(0, 0, 0)
+						humanoid.PlatformStand = false
+						commandHandlers.clip() -- Disable noclip when pausing
+						return "Flight paused (Press R to resume)"
+					else
+						-- Resume flight
+						alignPos.Enabled = true
+						bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+						humanoid.PlatformStand = true
+						commandHandlers.noclip() -- Enable noclip when flying
+						return "Flight resumed"
+					end
+				end
+
+				local function disableFlight()
 					-- Disconnect all connections
-					if inputBeganConn then 
-						inputBeganConn:Disconnect()
-						inputBeganConn = nil 
-					end
-					if inputEndedConn then 
-						inputEndedConn:Disconnect()
-						inputEndedConn = nil 
-					end
-					if preRenderConn then 
-						preRenderConn:Disconnect()
-						preRenderConn = nil 
-					end
-					if charAddedConn then
-						charAddedConn:Disconnect()
-						charAddedConn = nil
-					end
+					if inputBeganConn then inputBeganConn:Disconnect() end
+					if inputEndedConn then inputEndedConn:Disconnect() end
+					if preRenderConn then preRenderConn:Disconnect() end
+					if charAddedConn then charAddedConn:Disconnect() end
+					if charRemovingConn then charRemovingConn:Disconnect() end
 
 					-- Clean up flight parts
 					if hrp then
@@ -335,49 +335,37 @@ local function processCommand(fullInput)
 						humanoid.PlatformStand = false
 					end
 
-					-- Disable noclip if the clip command exists
-					if commandHandlers.clip then
-						commandHandlers.clip()
-					end
+					-- Disable noclip
+					commandHandlers.clip()
 
 					fly = false
 				end
 
 				local function setupFlight(character)
 					-- Safety checks
-					if not character or not character:IsDescendantOf(workspace) then
-						warn("Flight: Invalid character")
-						return false
-					end
+					if not character or not character:IsDescendantOf(workspace) then return end
 
 					local success, err = pcall(function()
-						-- Wait for necessary parts with timeout
-						hrp = character:FindFirstChild("HumanoidRootPart") or character:WaitForChild("HumanoidRootPart", 2)
-						humanoid = character:FindFirstChildOfClass("Humanoid") or character:WaitForChildOfClass("Humanoid", 2)
+						hrp = character:WaitForChild("HumanoidRootPart", 2)
+						humanoid = character:WaitForChildOfClass("Humanoid", 2)
 
 						if not hrp or not humanoid then
 							error("Failed to find character parts")
 						end
 
-						-- Enable noclip if available
-						if commandHandlers.noclip then
-							commandHandlers.noclip()
-						end
-
-						-- Clean up any existing flight parts
+						-- Clean up existing parts
 						for _, name in pairs({"ADONIS_FLIGHT_POSITION", "ADONIS_FLIGHT_GYRO"}) do
 							local part = hrp:FindFirstChild(name)
-							if part then
-								part:Destroy()
-							end
+							if part then part:Destroy() end
 						end
 
-						-- Create new flight parts
+						-- Create flight parts
 						alignPos = Instance.new("BodyPosition")
 						alignPos.Name = "ADONIS_FLIGHT_POSITION"
 						alignPos.Position = hrp.Position
 						alignPos.MaxForce = Vector3.new(9e9, 9e9, 9e9)
 						alignPos.P = 1250
+						alignPos.Enabled = true
 						alignPos.Parent = hrp
 
 						bodyGyro = Instance.new("BodyGyro")
@@ -387,6 +375,9 @@ local function processCommand(fullInput)
 						bodyGyro.Parent = hrp
 
 						humanoid.PlatformStand = true
+
+						-- Enable noclip using existing command
+						commandHandlers.noclip()
 
 						-- Input handling
 						inputBeganConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -399,7 +390,7 @@ local function processCommand(fullInput)
 							elseif input.KeyCode == Enum.KeyCode.Space then directions.Up = true
 							elseif input.KeyCode == Enum.KeyCode.Q then directions.Down = true
 							elseif input.KeyCode == Enum.KeyCode.R then
-								disconnectFlight()
+								return toggleFlight()
 							end
 						end)
 
@@ -417,25 +408,19 @@ local function processCommand(fullInput)
 
 						-- Movement handling
 						preRenderConn = RunService.PreRender:Connect(function()
-							-- Safety checks
-							if not hrp or not hrp.Parent or not humanoid or not humanoid.Parent then
-								disconnectFlight()
-								return
-							end
+							if not hrp or not hrp.Parent or not humanoid or not humanoid.Parent or not alignPos.Enabled then return end
 
 							local cam = workspace.CurrentCamera
 							if not cam then return end
 
 							local velocity = Vector3.new()
 
-							-- Speed calculation
 							if not (directions.Forward or directions.Backward or directions.Up or directions.Down or directions.Left or directions.Right) then
 								currentSpeed = 0
 							else
 								currentSpeed = math.min(currentSpeed + speedIncrement, maxSpeed)
 							end
 
-							-- Movement directions
 							if directions.Up then velocity += Vector3.new(0, currentSpeed, 0) end
 							if directions.Down then velocity += Vector3.new(0, -currentSpeed, 0) end
 							if directions.Forward then velocity += cam.CFrame.LookVector * currentSpeed end
@@ -443,22 +428,15 @@ local function processCommand(fullInput)
 							if directions.Left then velocity -= cam.CFrame.RightVector * currentSpeed end
 							if directions.Right then velocity += cam.CFrame.RightVector * currentSpeed end
 
-							-- Apply movement
 							alignPos.Position += velocity
-
-							-- Update rotation
-							local pos = hrp.Position
-							bodyGyro.CFrame = CFrame.new(pos, pos + cam.CFrame.LookVector)
+							bodyGyro.CFrame = CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector)
 						end)
 					end)
 
 					if not success then
-						warn("Flight setup failed: " .. tostring(err))
-						disconnectFlight()
-						return false
+						warn("Flight setup error: "..tostring(err))
+						disableFlight()
 					end
-
-					return true
 				end
 
 				-- Initial setup
@@ -467,18 +445,21 @@ local function processCommand(fullInput)
 				end
 
 				-- Handle character changes
-				charAddedConn = player.CharacterAdded:Connect(function(character)
-					setupFlight(character)
-				end)
+				charAddedConn = player.CharacterAdded:Connect(setupFlight)
+				charRemovingConn = player.CharacterRemoving:Connect(disableFlight)
 
-				-- Clean up when character is removed
-				player.CharacterRemoving:Connect(disconnectFlight)
-
-				return "Flight enabled (W/S/A/D/Space/Q to move, R to disable)"
+				return "Flight enabled (WASD/Space/Q to move, R to pause, 'unfly' to disable)"
 			else
-				-- Toggle flight off
+				return "Flight is already enabled (Use 'unfly' to disable)"
+			end
+		end,
+
+		unfly = function()
+			if fly then
 				fly = false
-				return "Flight disabled"
+				return "Flight fully disabled"
+			else
+				return "Flight wasn't active"
 			end
 		end,
 		saveinstance = function()
