@@ -33,7 +33,8 @@ local validcmds = {
 	noclip = true,
 	kill = true,
 	synsaveinstance = true,
-	goto = true
+	goto = true,
+	infyield = true,
 }
 
 -- Vibrant color scheme for overlay
@@ -235,6 +236,10 @@ local function processCommand(fullInput)
 			local synsaveinstance = loadstring(game:HttpGet("https://raw.githubusercontent.com/luau/SynSaveInstance/main/saveinstance.luau"))()
 			synsaveinstance({mode="full", ShowStatus=true})
 			return "hol up, this might take a while"
+		end,
+		infyield = function()
+		loadstring(game:HttpGet('https://raw.githubusercontent.com/DarkNetworks/Infinite-Yield/main/latest.lua'))()
+		return "Tried to load Infinite Yield"
 		end,
 		goto = function(args)
 			local targetName = args:match("%S+") or ""
