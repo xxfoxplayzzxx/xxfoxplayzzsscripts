@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local PlayerGui = player:WaitForChild("PlayerGui")
 local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
 
 local gui = game:GetObjects("rbxassetid://82094800004860")[1]
 
@@ -86,6 +87,7 @@ local function updateBar()
 	end
 end
 
+-- Build colored segment
 local function colorizeCommand(inputText)
 	local commandSegments = {}
 	for segment in inputText:gmatch("([^,]+)") do
@@ -104,11 +106,7 @@ local function colorizeCommand(inputText)
 		local cmd, args = segment:match("^(%S+)%s*(.*)$")
 		cmd = cmd or ""
 		args = args or ""
-
-		-- Check if valid command
-		local isValid = validcmds[cmd:lower()] ~= nil
-
-		-- Build colored segment
+		local isValid = validcmds[cmd:lower()] ~= nil or aliases[cmd:lower()] ~= nil
 		if i > 1 then
 			coloredOutput = coloredOutput .. '<font color="'..TextColors.Neutral..'">, </font>'
 		end
@@ -118,7 +116,6 @@ local function colorizeCommand(inputText)
 			isValid and TextColors.Valid or TextColors.Invalid, 
 			cmd
 		)
-
 		if args ~= "" then
 			coloredOutput = coloredOutput .. string.format(
 				' <font color="%s">%s</font>', 
@@ -365,6 +362,8 @@ local function processCommand(fullInput)
 			player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Dead)
 		end,
 		rejoin = function()
+			local PlaceId = game.PlaceId
+			local JobId = game.JobId
 			if #Players:GetPlayers() <= 1 then
 				Players.LocalPlayer:Kick("\nRejoining...")
 				wait()
