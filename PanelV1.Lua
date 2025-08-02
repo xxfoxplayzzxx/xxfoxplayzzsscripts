@@ -32,7 +32,7 @@ local validcmds = {
 	fly = true,
 	noclip = true,
 	kill = true,
-	synsaveinstance = true,
+	saveinstance = true,
 	goto = true,
 	infyield = true,
 }
