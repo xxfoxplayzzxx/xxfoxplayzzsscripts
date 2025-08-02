@@ -1,204 +1,216 @@
 -- Services
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- Load ESP assets
-local ESPAssets = game:GetObjects("rbxassetid://136147565845068")[1]
-local ESPGuiTemplate = ESPAssets:FindFirstChild("ESPGui")
-local TracerTemplate = ESPAssets:FindFirstChild("Tracer")
+-- Configuration
+local ESPConfig = {
+    Enabled = false,
+    TeamCheck = true,
+    Tracers = true,
+    Boxes = true,
+    Names = true,
+    HealthBars = true,
+    Distance = true,
+    
+    -- Colors
+    EnemyColor = Color3.fromRGB(255, 60, 60),
+    FriendlyColor = Color3.fromRGB(60, 255, 60),
+    NeutralColor = Color3.fromRGB(255, 255, 60),
+    
+    -- Keybind
+    ToggleKey = Enum.KeyCode.F1,
+    
+    -- Performance
+    UpdateRate = 0.1, -- Seconds between updates
+    MaxDistance = 1000 -- Max render distance
+}
 
-if not ESPGuiTemplate or not TracerTemplate then
-    error("Missing ESP assets in the model!")
+-- ESP Instance Pool
+local ESPPool = {
+    Active = {},
+    Inactive = {}
+}
+
+-- Create base ESP objects
+local function CreateBasePart()
+    local part = Instance.new("Part")
+    part.Anchored = true
+    part.CanCollide = false
+    part.Transparency = 1
+    part.Size = Vector3.new(2, 3, 1)
+    part.Parent = workspace
+    return part
 end
 
--- ESP Settings
-local ESPEnabled = false
-local TeamCheck = true -- Change to false to ignore teams
-local TracersEnabled = true
-
--- Colors (using standard Color3 values instead of Studio settings)
-local EnemyColor = Color3.fromRGB(255, 60, 60)    -- Red
-local FriendlyColor = Color3.fromRGB(60, 255, 60) -- Green
-local NeutralColor = Color3.fromRGB(255, 255, 60) -- Yellow
-
--- Track all ESP instances
-local ESPInstances = {}
-
--- Create ESP for a player
-local function CreateESP(player)
-    if player == LocalPlayer or ESPInstances[player] then return end
+local function CreateESPUI()
+    local gui = Instance.new("BillboardGui")
+    gui.Size = UDim2.new(4, 0, 6, 0)
+    gui.AlwaysOnTop = true
     
-    local esp = {
-        Player = player,
-        Gui = nil,
-        Tracer = nil,
-        Connections = {}
-    }
-    ESPInstances[player] = esp
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundTransparency = 0.5
+    frame.BorderSizePixel = 1
+    frame.Parent = gui
     
-    local function Initialize()
-        -- Wait for characters
-        local targetChar = player.Character or player.CharacterAdded:Wait()
-        local localChar = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-        
-        -- Create ESP GUI
-        esp.Gui = ESPGuiTemplate:Clone()
-        esp.Gui.Adornee = targetChar:WaitForChild("HumanoidRootPart")
-        esp.Gui.Parent = Camera
-        esp.Gui.Enabled = true
-        
-        -- Set player name
-        local header = esp.Gui:FindFirstChild("Header")
-        if header then
-            header.Text = player.DisplayName ~= player.Name and 
-                string.format("%s (@%s)", player.DisplayName, player.Name) or 
-                player.Name
-        end
-        
-        -- Create tracer
-        if TracersEnabled then
-            esp.Tracer = TracerTemplate:Clone()
-            esp.Tracer.Attachment0 = localChar:WaitForChild("HumanoidRootPart"):WaitForChild("RootAttachment")
-            esp.Tracer.Attachment1 = targetChar:WaitForChild("HumanoidRootPart"):WaitForChild("RootAttachment")
-            esp.Tracer.Parent = Camera
-        end
-        
-        -- Update colors based on team
-        local function UpdateColors()
-            local color
-            if TeamCheck and player.Team and LocalPlayer.Team then
-                color = player.Team == LocalPlayer.Team and FriendlyColor or EnemyColor
-            else
-                color = NeutralColor
-            end
-            
-            if esp.Tracer then
-                esp.Tracer.Color = ColorSequence.new(color)
-            end
-            if esp.Gui:FindFirstChild("BackgroundColor3") then
-                esp.Gui.BackgroundColor3 = color
-            end
-        end
-        
-        -- Setup connections
-        table.insert(esp.Connections, player.CharacterAdded:Connect(function(newChar)
-            esp.Gui.Adornee = newChar:WaitForChild("HumanoidRootPart")
-            if esp.Tracer then
-                esp.Tracer.Attachment1 = newChar:WaitForChild("HumanoidRootPart").RootAttachment
-            end
-            UpdateColors()
-        end))
-        
-        table.insert(esp.Connections, LocalPlayer.CharacterAdded:Connect(function(newChar)
-            if esp.Tracer then
-                esp.Tracer.Attachment0 = newChar:WaitForChild("HumanoidRootPart").RootAttachment
-            end
-        end))
-        
-        if TeamCheck then
-            table.insert(esp.Connections, player:GetPropertyChangedSignal("Team"):Connect(UpdateColors))
-            table.insert(esp.Connections, LocalPlayer:GetPropertyChangedSignal("Team"):Connect(UpdateColors))
-        end
-        
-        UpdateColors()
-    end
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 0.2, 0)
+    nameLabel.Position = UDim2.new(0, 0, 0, -20)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.TextScaled = true
+    nameLabel.Parent = gui
     
-    -- Initialize with error handling
-    local success, err = pcall(Initialize)
-    if not success then
-        warn("ESP failed for "..player.Name..": "..err)
-        ESPInstances[player] = nil
+    local healthBar = Instance.new("Frame")
+    healthBar.Size = UDim2.new(0.8, 0, 0.05, 0)
+    healthBar.Position = UDim2.new(0.1, 0, 0.85, 0)
+    healthBar.BorderSizePixel = 1
+    healthBar.Parent = gui
+    
+    local healthFill = Instance.new("Frame")
+    healthFill.Size = UDim2.new(1, 0, 1, 0)
+    healthFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    healthFill.Parent = healthBar
+    
+    return gui, frame, nameLabel, healthBar, healthFill
+end
+
+-- Get ESP instance from pool
+local function GetESPInstance()
+    if #ESPPool.Inactive > 0 then
+        return table.remove(ESPPool.Inactive)
+    else
+        local basePart = CreateBasePart()
+        local gui, frame, nameLabel, healthBar, healthFill = CreateESPUI()
+        return {
+            BasePart = basePart,
+            GUI = gui,
+            Frame = frame,
+            NameLabel = nameLabel,
+            HealthBar = healthBar,
+            HealthFill = healthFill,
+            Tracer = TracersEnabled and Instance.new("Beam") or nil
+        }
     end
 end
 
--- Remove ESP for a player
-local function RemoveESP(player)
-    local esp = ESPInstances[player]
-    if not esp then return end
+-- Update ESP appearance
+local function UpdateESP(esp, player, character)
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoid or not rootPart then return end
     
-    -- Disconnect all events
-    for _, conn in pairs(esp.Connections) do
-        conn:Disconnect()
+    -- Set position and visibility
+    esp.BasePart.CFrame = rootPart.CFrame
+    esp.GUI.Adornee = rootPart
+    
+    -- Calculate distance
+    local distance = (rootPart.Position - Camera.CFrame.Position).Magnitude
+    if distance > ESPConfig.MaxDistance then
+        esp.GUI.Enabled = false
+        return
     end
     
-    -- Destroy objects
-    if esp.Gui then esp.Gui:Destroy() end
-    if esp.Tracer then esp.Tracer:Destroy() end
+    esp.GUI.Enabled = true
     
-    ESPInstances[player] = nil
+    -- Set colors based on team
+    local color
+    if ESPConfig.TeamCheck and player.Team and LocalPlayer.Team then
+        color = player.Team == LocalPlayer.Team and ESPConfig.FriendlyColor or ESPConfig.EnemyColor
+    else
+        color = ESPConfig.NeutralColor
+    end
+    
+    -- Update visuals
+    esp.Frame.BackgroundColor3 = color
+    esp.Frame.BorderColor3 = color:lerp(Color3.new(0,0,0), 0.5)
+    
+    if ESPConfig.Names then
+        esp.NameLabel.Text = player.DisplayName ~= "" and player.DisplayName or player.Name
+        esp.NameLabel.TextColor3 = color
+    end
+    
+    if ESPConfig.HealthBars and humanoid then
+        local healthPercent = humanoid.Health / humanoid.MaxHealth
+        esp.HealthFill.Size = UDim2.new(healthPercent, 0, 1, 0)
+        esp.HealthFill.BackgroundColor3 = Color3.fromRGB(
+            255 * (1 - healthPercent),
+            255 * healthPercent,
+            0
+        )
+    end
+    
+    if ESPConfig.Distance then
+        esp.NameLabel.Text = string.format("%s [%dm]", esp.NameLabel.Text, math.floor(distance))
+    end
+    
+    -- Update tracer if enabled
+    if esp.Tracer then
+        esp.Tracer.Color = ColorSequence.new(color)
+        esp.Tracer.Attachment0 = LocalPlayer.Character:FindFirstChild("HumanoidRootPart").RootAttachment
+        esp.Tracer.Attachment1 = rootPart.RootAttachment
+    end
+end
+
+-- Main ESP loop
+local function ESPLoop()
+    for player, esp in pairs(ESPPool.Active) do
+        if player and player.Character then
+            UpdateESP(esp, player, player.Character)
+        else
+            -- Return to pool if player left
+            table.insert(ESPPool.Inactive, esp)
+            ESPPool.Active[player] = nil
+        end
+    end
 end
 
 -- Toggle ESP system
 local function ToggleESP()
-    ESPEnabled = not ESPEnabled
+    ESPConfig.Enabled = not ESPConfig.Enabled
     
-    if ESPEnabled then
-        -- Enable for all players
+    if ESPConfig.Enabled then
+        -- Enable for existing players
         for _, player in ipairs(Players:GetPlayers()) do
             if player ~= LocalPlayer then
-                CreateESP(player)
+                ESPPool.Active[player] = GetESPInstance()
             end
         end
         
         -- Connect to new players
-        ESPInstances.PlayerAdded = Players.PlayerAdded:Connect(function(player)
-            CreateESP(player)
+        Players.PlayerAdded:Connect(function(player)
+            ESPPool.Active[player] = GetESPInstance()
         end)
         
-        -- Connect to leaving players
-        ESPInstances.PlayerRemoving = Players.PlayerRemoving:Connect(function(player)
-            RemoveESP(player)
-        end)
+        -- Start update loop
+        RunService:BindToRenderStep("ESPUpdate", Enum.RenderPriority.Last.Value, ESPLoop)
     else
-        -- Disable all ESP
-        for player in pairs(ESPInstances) do
-            if type(player) == "userdata" then -- Only actual player instances
-                RemoveESP(player)
-            end
-        end
+        -- Disable and clean up
+        RunService:UnbindFromRenderStep("ESPUpdate")
         
-        -- Clean up connections
-        if ESPInstances.PlayerAdded then
-            ESPInstances.PlayerAdded:Disconnect()
+        for player, esp in pairs(ESPPool.Active) do
+            table.insert(ESPPool.Inactive, esp)
         end
-        if ESPInstances.PlayerRemoving then
-            ESPInstances.PlayerRemoving:Disconnect()
-        end
+        ESPPool.Active = {}
     end
 end
 
--- Keybind (F1 to toggle)
-local UIS = game:GetService("UserInputService")
-UIS.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == Enum.KeyCode.F1 then
+-- Keybind
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == ESPConfig.ToggleKey then
         ToggleESP()
     end
 end)
 
--- Initial notification
-local function Notify(message)
-    print("[ESP] "..message)
-    if not game:GetService("StarterGui"):GetCoreGuiEnabled(Enum.CoreGuiType.Chat) then
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "ESP System",
-            Text = message,
-            Duration = 3
-        })
+-- Initialization
+local function Init()
+    -- Wait for character
+    if not LocalPlayer.Character then
+        LocalPlayer.CharacterAdded:Wait()
     end
+    
+    ToggleESP()
 end
 
-Notify("ESP loaded! Press F1 to toggle")
-
--- Auto-cleanup
-local function Cleanup()
-    if ESPEnabled then
-        ToggleESP() -- Turn off ESP before cleanup
-    end
-end
-
-game:GetService("ScriptContext").DescendantRemoving:Connect(function(descendant)
-    if descendant == script then
-        Cleanup()
-    end
-end)
+Init()
