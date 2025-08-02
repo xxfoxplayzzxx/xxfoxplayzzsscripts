@@ -385,19 +385,28 @@ local function processCommand(fullInput)
     wait(0.1)
 
     if targetName == "" then
-        -- Self-fling (spin in place without platformstand)
+        -- Self-fling (spin in place like a top)
+        local root = player.Character.HumanoidRootPart
+        
+        -- Clear existing velocities
+        root.Velocity = Vector3.new()
+        root.RotVelocity = Vector3.new()
+        
+        -- Create angular velocity for spinning
         local bambam = Instance.new("BodyAngularVelocity")
         bambam.Name = "ADONIS_FLIGHT_POSITION"
-        bambam.Parent = player.Character.HumanoidRootPart
-        bambam.AngularVelocity = Vector3.new(0, 99999, 0)
-        bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        bambam.Parent = root
+        bambam.AngularVelocity = Vector3.new(0, 99999, 0) -- Spin only on Y-axis
+        bambam.MaxTorque = Vector3.new(0, math.huge, 0)   -- Only allow torque on Y-axis
         bambam.P = math.huge
-
-        -- For self-fling, add slight upward velocity to prevent ground clipping
-        player.Character.HumanoidRootPart.Velocity = Vector3.new(0, 50, 0)
+        
+        -- Anchor temporarily to stabilize
+        root.Anchored = true
+        task.wait(0.1)
+        root.Anchored = false
         
         flinging = true
-        return "Flinging in place"
+        return
     end
 
     if targetName:lower() == "random" then
