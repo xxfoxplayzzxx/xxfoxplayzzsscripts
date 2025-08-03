@@ -397,9 +397,9 @@ fling = function(args)
     local targetName = args:match("%S+") or ""
     targetPlayer = nil
     local flingThreshold = 100
-    local MAX_FLING_TIME = 1.5  -- Maximum time before auto-unfling
+    local MAX_FLING_TIME = 1.5
 
-    -- First clean up any existing fling effects
+    -- Clean up existing fling
     processCommand("unfling")
     task.wait(0.1)
 
@@ -410,16 +410,15 @@ fling = function(args)
 
     if not rootPart or not humanoid then return end
 
-    -- Enable noclip after cleanup
+    -- Prepare physics
     processCommand("noclip")
     task.wait(0.1)
 
-    -- Reset physics properties
+    -- Reset physics
     humanoid.PlatformStand = false
     humanoid.AutoRotate = true
     rootPart.Anchored = true
     
-    -- Improved physics preparation
     for _, v in pairs(character:GetDescendants()) do
         if v:IsA("BasePart") then
             v.Velocity = Vector3.new()
@@ -431,7 +430,7 @@ fling = function(args)
     task.wait(0.1)
 
     if targetName == "" then
-        -- Self-fling (spin in place)
+        -- Self-fling remains same
         rootPart.Anchored = false
         local bambam = Instance.new("BodyAngularVelocity")
         bambam.Name = "ADONIS_FLIGHT_POSITION"
@@ -444,7 +443,7 @@ fling = function(args)
         return "Spinning in place"
     end
 
-    -- Target player fling
+    -- Target player selection
     if targetName:lower() == "random" then
         local players = Players:GetPlayers()
         if #players > 0 then
@@ -467,7 +466,7 @@ fling = function(args)
     humanoid.PlatformStand = true
     rootPart.Anchored = false
 
-    -- Create velocity for flinging
+    -- Create velocity and angular velocity
     local bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.Name = "ADONIS_FLIGHT_VELOCITY"
     bodyVelocity.Parent = rootPart
@@ -481,7 +480,7 @@ fling = function(args)
     bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
     bambam.P = math.huge
 
-    -- Teleport directly to target (no offset)
+    -- Initial teleport to target
     if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
         rootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
     end
@@ -497,7 +496,7 @@ fling = function(args)
         return velocity > flingThreshold or rotVelocity > flingThreshold
     end
 
-    -- Disconnect any existing loop first
+    -- Clean up old connection
     if flingLoop then
         flingLoop:Disconnect()
         flingLoop = nil
@@ -505,13 +504,11 @@ fling = function(args)
 
     flingLoop = RunService.Heartbeat:Connect(function()
         if not flinging then 
-            if flingLoop then
-                flingLoop:Disconnect()
-            end
+            if flingLoop then flingLoop:Disconnect() end
             return 
         end
         
-        -- Auto-unfling after timeout
+        -- Timeout check
         if tick() - cycleStart >= MAX_FLING_TIME then
             if not targetFlingConfirmed then
                 processCommand("unfling")
@@ -522,19 +519,18 @@ fling = function(args)
         if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local targetRoot = targetPlayer.Character.HumanoidRootPart
             
-            -- Check if target has been flung
+            -- Fling detection
             if not targetFlingConfirmed and isTargetFlinging(targetRoot) then
                 targetFlingConfirmed = true
-                -- Optional: Add a short delay after successful fling
                 task.delay(0.5, function()
-                    if flinging then
-                        processCommand("unfling")
-                    end
+                    if flinging then processCommand("unfling") end
                 end)
             end
             
-            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            -- CRITICAL FIX: Maintain position on target
+            rootPart.CFrame = targetRoot.CFrame
             rootPart.RotVelocity = Vector3.new(20000, 20000, 20000)
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
         else
             processCommand("unfling")
         end
