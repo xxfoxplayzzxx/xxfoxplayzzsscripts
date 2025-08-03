@@ -169,74 +169,74 @@ StringUtils.matchScore = function(str, pattern)
 end
 
 local function updateAutocomplete()
-    local fullText = input.Text
-    underlay.Text = ""
-    colorizeCommand(fullText)
+	local fullText = input.Text
+	underlay.Text = ""
+	colorizeCommand(fullText)
 
-    -- Get the last segment
-    local lastSegment = fullText:match("([^,]*)$"):gsub("^%s*(.-)%s*$", "%1")
-    if lastSegment == "" then return end
+	-- Get the last segment
+	local lastSegment = fullText:match("([^,]*)$"):gsub("^%s*(.-)%s*$", "%1")
+	if lastSegment == "" then return end
 
-    -- Split into command and arguments
-    local cmd, args = lastSegment:match("^(%S+)%s*(.*)$")
-    cmd = cmd or ""
-    args = args or ""
+	-- Split into command and arguments
+	local cmd, args = lastSegment:match("^(%S+)%s*(.*)$")
+	cmd = cmd or ""
+	args = args or ""
 
-    -- Check for multi-command situation
-    local hasExistingCommas = fullText:sub(1, -#lastSegment - 1):find(",")
-    local prefix = hasExistingCommas and fullText:sub(1, -#lastSegment - 1) or ""
+	-- Check for multi-command situation
+	local hasExistingCommas = fullText:sub(1, -#lastSegment - 1):find(",")
+	local prefix = hasExistingCommas and fullText:sub(1, -#lastSegment - 1) or ""
 
-    -- Find best match for command (only if starting letters match)
-    local bestCmdMatch, bestCmdScore = nil, 0
-    for cmdName in pairs(validcmds) do
-        if cmdName:lower():sub(1, #cmd) == cmd:lower() then
-            bestCmdMatch = cmdName
-            bestCmdScore = 1.0
-            break
-        end
-    end
+	-- Find best match for command (only if starting letters match)
+	local bestCmdMatch, bestCmdScore = nil, 0
+	for cmdName in pairs(validcmds) do
+		if cmdName:lower():sub(1, #cmd) == cmd:lower() then
+			bestCmdMatch = cmdName
+			bestCmdScore = 1.0
+			break
+		end
+	end
 
-    local bestPlayerMatch, bestPlayerScore = nil, 0
-    if args ~= "" then
-        if args:lower() == "rand" or args:lower() == "rando" or args:lower() == "random" then
-            bestPlayerMatch = "random"
-            bestPlayerScore = 1.0
-        else
-            -- FIRST check for names that START WITH the search string
-            for _, player in pairs(Players:GetPlayers()) do
-                if player.Name:lower():sub(1, #args) == args:lower() then
-                    bestPlayerMatch = player.Name
-                    bestPlayerScore = 1.0
-                    break
-                end
-            end
-            
-            -- If no exact start match found, then look for CONTAINS matches
-            if not bestPlayerMatch then
-                for _, player in pairs(Players:GetPlayers()) do
-                    if player.Name:lower():find(args:lower(), 1, true) then
-                        bestPlayerMatch = player.Name
-                        bestPlayerScore = 0.9  -- Lower score than start matches
-                        break
-                    end
-                end
-            end
-        end
-    end
+	local bestPlayerMatch, bestPlayerScore = nil, 0
+	if args ~= "" then
+		if args:lower() == "rand" or args:lower() == "rando" or args:lower() == "random" then
+			bestPlayerMatch = "random"
+			bestPlayerScore = 1.0
+		else
+			-- FIRST check for names that START WITH the search string
+			for _, player in pairs(Players:GetPlayers()) do
+				if player.Name:lower():sub(1, #args) == args:lower() then
+					bestPlayerMatch = player.Name
+					bestPlayerScore = 1.0
+					break
+				end
+			end
 
-    if args == "" and bestCmdMatch and bestCmdMatch:lower() == cmd:lower() then
-        underlay.Text = ""
-    elseif args == "" and bestCmdMatch and bestCmdScore > 0.5 then
-        underlay.Text = prefix .. bestCmdMatch
-        underlay.TextTransparency = 0.5
+			-- If no exact start match found, then look for CONTAINS matches
+			if not bestPlayerMatch then
+				for _, player in pairs(Players:GetPlayers()) do
+					if player.Name:lower():find(args:lower(), 1, true) then
+						bestPlayerMatch = player.Name
+						bestPlayerScore = 0.9  -- Lower score than start matches
+						break
+					end
+				end
+			end
+		end
+	end
 
-        if bestCmdMatch:lower():sub(1, #cmd) == cmd:lower() then
-            underlay.Text = underlay.Text .. " "
-        end
-    elseif args ~= "" and bestPlayerMatch and bestPlayerScore > 0.5 then
-        underlay.Text = prefix .. (bestCmdMatch or cmd) .. " " .. bestPlayerMatch
-        underlay.TextTransparency = 0.5
-    end
+	if args == "" and bestCmdMatch and bestCmdMatch:lower() == cmd:lower() then
+		underlay.Text = ""
+	elseif args == "" and bestCmdMatch and bestCmdScore > 0.5 then
+		underlay.Text = prefix .. bestCmdMatch
+		underlay.TextTransparency = 0.5
+
+		if bestCmdMatch:lower():sub(1, #cmd) == cmd:lower() then
+			underlay.Text = underlay.Text .. " "
+		end
+	elseif args ~= "" and bestPlayerMatch and bestPlayerScore > 0.5 then
+		underlay.Text = prefix .. (bestCmdMatch or cmd) .. " " .. bestPlayerMatch
+		underlay.TextTransparency = 0.5
+	end
 end
 
 local function processCommand(fullInput)
@@ -245,10 +245,10 @@ local function processCommand(fullInput)
 	local commandHandlers = {}
 	local commandHandlers = {
 		reload = function()
-		gui:Destroy
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/refs/heads/main/PanelV1.Lua"))()
-		script:Destroy
-		return
+			gui:Destroy()
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/refs/heads/main/PanelV1.Lua"))()
+			script:Destroy()
+			return
 		end,
 		noclip = function()
 			Clip = false
@@ -270,45 +270,45 @@ local function processCommand(fullInput)
 		end,
 		clip = function()
 			clip = true
-			    if NoclippingConnection then
-        NoclippingConnection:Disconnect()
-        NoclippingConnection = nil
-    end
-			return
-		end,
-fly = function()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/refs/heads/main/Flight.Lua"))()
-    local isfly = false
-    local rKeyConnection
-    rKeyConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed or input.KeyCode ~= Enum.KeyCode.R then return end
-		if isfly == false then
-        	isfly = true
-						Clip = false
-			task.wait(0.1)
 			if NoclippingConnection then
 				NoclippingConnection:Disconnect()
+				NoclippingConnection = nil
 			end
-			NoclippingConnection = RunService.Stepped:Connect(function()
-				local character = player.Character
-				if not character then return end
-				for _, part in ipairs(character:GetDescendants()) do
-					if part:IsA("BasePart") then
-						part.CanCollide = false
+			return
+		end,
+		fly = function()
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/refs/heads/main/Flight.Lua"))()
+			local isfly = false
+			local rKeyConnection
+			rKeyConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
+				if gameProcessed or input.KeyCode ~= Enum.KeyCode.R then return end
+				if isfly == false then
+					isfly = true
+					Clip = false
+					task.wait(0.1)
+					if NoclippingConnection then
+						NoclippingConnection:Disconnect()
+					end
+					NoclippingConnection = RunService.Stepped:Connect(function()
+						local character = player.Character
+						if not character then return end
+						for _, part in ipairs(character:GetDescendants()) do
+							if part:IsA("BasePart") then
+								part.CanCollide = false
+							end
+						end
+					end)
+				else
+					isfly = false
+					clip = true
+					if NoclippingConnection then
+						NoclippingConnection:Disconnect()
+						NoclippingConnection = nil
 					end
 				end
 			end)
-		else
-			isfly = false
-						clip = true
-			    if NoclippingConnection then
-        NoclippingConnection:Disconnect()
-        NoclippingConnection = nil
-    end
-		end
-    end)
-    return
-end,
+			return
+		end,
 		saveinstance = function()
 			local synsaveinstance = loadstring(game:HttpGet("https://raw.githubusercontent.com/luau/SynSaveInstance/main/saveinstance.luau"))()
 			synsaveinstance({mode="full", ShowStatus=true})
@@ -400,219 +400,219 @@ end,
 				TeleportService:TeleportToPlaceInstance(PlaceId, JobId, Players.LocalPlayer)
 			end
 		end,
-fling = function(args)
-    local targetName = args:match("%S+") or ""
-    targetPlayer = nil
-    local flingThreshold = 100
-    local MAX_FLING_TIME = 2.5  -- Increased timeout
-    local REQUIRED_FLING_DURATION = 0.3  -- Target must be flinging for this long
+		fling = function(args)
+			local targetName = args:match("%S+") or ""
+			targetPlayer = nil
+			local flingThreshold = 100
+			local MAX_FLING_TIME = 2.5  -- Increased timeout
+			local REQUIRED_FLING_DURATION = 0.3  -- Target must be flinging for this long
 
-    -- Clean up existing fling
-    processCommand("unfling")
-    task.wait(0.1)
+			-- Clean up existing fling
+			processCommand("unfling")
+			task.wait(0.1)
 
-    local character = player.Character
-    if not character then return end
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
+			local character = player.Character
+			if not character then return end
+			local rootPart = character:FindFirstChild("HumanoidRootPart")
+			local humanoid = character:FindFirstChildOfClass("Humanoid")
 
-    if not rootPart or not humanoid then return end
+			if not rootPart or not humanoid then return end
 
-    -- Prepare physics
-    processCommand("noclip")
-    task.wait(0.1)
+			-- Prepare physics
+			processCommand("noclip")
+			task.wait(0.1)
 
-    -- Reset physics
-    humanoid.PlatformStand = false
-    humanoid.AutoRotate = true
-    rootPart.Anchored = true
-    
-    for _, v in pairs(character:GetDescendants()) do
-        if v:IsA("BasePart") then
-            v.Velocity = Vector3.new()
-            v.RotVelocity = Vector3.new()
-            v.CustomPhysicalProperties = PhysicalProperties.new(1, 0.3, 0.5)
-            v.CanCollide = false
-        end
-    end
-    task.wait(0.1)
+			-- Reset physics
+			humanoid.PlatformStand = false
+			humanoid.AutoRotate = true
+			rootPart.Anchored = true
 
-    if targetName == "" then
-        -- Self-fling remains same
-        rootPart.Anchored = false
-        local bambam = Instance.new("BodyAngularVelocity")
-        bambam.Name = "ADONIS_FLIGHT_POSITION"
-        bambam.Parent = rootPart
-        bambam.AngularVelocity = Vector3.new(0, 99999, 0)
-        bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-        bambam.P = math.huge
+			for _, v in pairs(character:GetDescendants()) do
+				if v:IsA("BasePart") then
+					v.Velocity = Vector3.new()
+					v.RotVelocity = Vector3.new()
+					v.CustomPhysicalProperties = PhysicalProperties.new(1, 0.3, 0.5)
+					v.CanCollide = false
+				end
+			end
+			task.wait(0.1)
 
-        flinging = true
-        return "Spinning in place"
-    end
+			if targetName == "" then
+				-- Self-fling remains same
+				rootPart.Anchored = false
+				local bambam = Instance.new("BodyAngularVelocity")
+				bambam.Name = "ADONIS_FLIGHT_POSITION"
+				bambam.Parent = rootPart
+				bambam.AngularVelocity = Vector3.new(0, 99999, 0)
+				bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+				bambam.P = math.huge
 
-    -- Target player selection
-    if targetName:lower() == "random" then
-        local players = Players:GetPlayers()
-        if #players > 0 then
-            targetPlayer = players[math.random(1,#players)]
-        else
-            return "No players found"
-        end
-    else
-        for _, p in pairs(Players:GetPlayers()) do
-            if string.find(string.lower(p.Name), string.lower(targetName)) then
-                targetPlayer = p
-                break
-            end
-        end
-    end
+				flinging = true
+				return "Spinning in place"
+			end
 
-    if not targetPlayer then return "Player not found" end
+			-- Target player selection
+			if targetName:lower() == "random" then
+				local players = Players:GetPlayers()
+				if #players > 0 then
+					targetPlayer = players[math.random(1,#players)]
+				else
+					return "No players found"
+				end
+			else
+				for _, p in pairs(Players:GetPlayers()) do
+					if string.find(string.lower(p.Name), string.lower(targetName)) then
+						targetPlayer = p
+						break
+					end
+				end
+			end
 
-    originalPosition = rootPart.CFrame
-    humanoid.PlatformStand = true
-    rootPart.Anchored = false
+			if not targetPlayer then return "Player not found" end
 
-    -- Create velocity and angular velocity
-    local bodyVelocity = Instance.new("BodyVelocity")
-    bodyVelocity.Name = "ADONIS_FLIGHT_VELOCITY"
-    bodyVelocity.Parent = rootPart
-    bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    bodyVelocity.P = math.huge
-    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+			originalPosition = rootPart.CFrame
+			humanoid.PlatformStand = true
+			rootPart.Anchored = false
 
-    local bambam = Instance.new("BodyAngularVelocity")
-    bambam.Name = "ADONIS_FLIGHT_POSITION"
-    bambam.Parent = rootPart
-    bambam.AngularVelocity = Vector3.new(20000, 20000, 20000)
-    bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    bambam.P = math.huge
+			-- Create velocity and angular velocity
+			local bodyVelocity = Instance.new("BodyVelocity")
+			bodyVelocity.Name = "ADONIS_FLIGHT_VELOCITY"
+			bodyVelocity.Parent = rootPart
+			bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+			bodyVelocity.P = math.huge
+			bodyVelocity.Velocity = Vector3.new(0, 0, 0)
 
-    -- Initial teleport to target
-    if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        rootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
-    end
+			local bambam = Instance.new("BodyAngularVelocity")
+			bambam.Name = "ADONIS_FLIGHT_POSITION"
+			bambam.Parent = rootPart
+			bambam.AngularVelocity = Vector3.new(20000, 20000, 20000)
+			bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+			bambam.P = math.huge
 
-    flinging = true
-    local cycleStart = tick()
-    local flingDetectionStart = nil
-    local targetFlingConfirmed = false
+			-- Initial teleport to target
+			if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+				rootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+			end
 
-    local function isTargetFlinging(targetRoot)
-        if not targetRoot then return false end
-        local velocity = targetRoot.Velocity.Magnitude
-        local rotVelocity = targetRoot.RotVelocity.Magnitude
-        return velocity > flingThreshold or rotVelocity > flingThreshold
-    end
+			flinging = true
+			local cycleStart = tick()
+			local flingDetectionStart = nil
+			local targetFlingConfirmed = false
 
-    -- Clean up old connection
-    if flingLoop then
-        flingLoop:Disconnect()
-        flingLoop = nil
-    end
+			local function isTargetFlinging(targetRoot)
+				if not targetRoot then return false end
+				local velocity = targetRoot.Velocity.Magnitude
+				local rotVelocity = targetRoot.RotVelocity.Magnitude
+				return velocity > flingThreshold or rotVelocity > flingThreshold
+			end
 
-    flingLoop = RunService.Heartbeat:Connect(function()
-        if not flinging then 
-            if flingLoop then flingLoop:Disconnect() end
-            return 
-        end
-        
-        -- Timeout check
-        if tick() - cycleStart >= MAX_FLING_TIME then
-            processCommand("unfling")
-            return
-        end
-        
-        if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local targetRoot = targetPlayer.Character.HumanoidRootPart
-            
-            -- Fling detection with duration check
-            if isTargetFlinging(targetRoot) then
-                if not flingDetectionStart then
-                    flingDetectionStart = tick()
-                elseif tick() - flingDetectionStart >= REQUIRED_FLING_DURATION and not targetFlingConfirmed then
-                    targetFlingConfirmed = true
-                    task.delay(0.5, function()
-                        if flinging then processCommand("unfling") end
-                    end)
-                end
-            else
-                flingDetectionStart = nil  -- Reset if conditions aren't met
-            end
-            
-            -- Maintain position on target
-            rootPart.CFrame = targetRoot.CFrame
-            rootPart.RotVelocity = Vector3.new(20000, 20000, 20000)
-            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-        else
-            processCommand("unfling")
-        end
-    end)
+			-- Clean up old connection
+			if flingLoop then
+				flingLoop:Disconnect()
+				flingLoop = nil
+			end
 
-    return "Flinging "..targetPlayer.Name
-end,
-unfling = function()
-    flinging = false
+			flingLoop = RunService.Heartbeat:Connect(function()
+				if not flinging then 
+					if flingLoop then flingLoop:Disconnect() end
+					return 
+				end
 
-    if flingLoop then
-        flingLoop:Disconnect()
-        flingLoop = nil
-    end
+				-- Timeout check
+				if tick() - cycleStart >= MAX_FLING_TIME then
+					processCommand("unfling")
+					return
+				end
 
-    local character = player.Character
-    if not character then return end
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
+				if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+					local targetRoot = targetPlayer.Character.HumanoidRootPart
 
-    if rootPart then
-        rootPart.Anchored = true
-    end
+					-- Fling detection with duration check
+					if isTargetFlinging(targetRoot) then
+						if not flingDetectionStart then
+							flingDetectionStart = tick()
+						elseif tick() - flingDetectionStart >= REQUIRED_FLING_DURATION and not targetFlingConfirmed then
+							targetFlingConfirmed = true
+							task.delay(0.5, function()
+								if flinging then processCommand("unfling") end
+							end)
+						end
+					else
+						flingDetectionStart = nil  -- Reset if conditions aren't met
+					end
 
-    -- Clear all velocities and constraints
-    for _, v in pairs(character:GetDescendants()) do
-        if v:IsA("BasePart") then
-            v.Velocity = Vector3.new()
-            v.RotVelocity = Vector3.new()
-            v.CanCollide = true
-            v.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5) -- Reset physics
-            for _, child in pairs(v:GetChildren()) do
-                if child:IsA("BodyVelocity") or child:IsA("BodyAngularVelocity") then
-                    child:Destroy()
-                end
-            end
-        end
-    end
+					-- Maintain position on target
+					rootPart.CFrame = targetRoot.CFrame
+					rootPart.RotVelocity = Vector3.new(20000, 20000, 20000)
+					bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+				else
+					processCommand("unfling")
+				end
+			end)
 
-    if humanoid then
-        humanoid.PlatformStand = false
-        humanoid.AutoRotate = true
-        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-    end
+			return "Flinging "..targetPlayer.Name
+		end,
+		unfling = function()
+			flinging = false
 
-    task.wait(0.5) -- Longer stabilization for R15
+			if flingLoop then
+				flingLoop:Disconnect()
+				flingLoop = nil
+			end
 
-    if originalPosition and rootPart then
-        rootPart.CFrame = originalPosition
-        task.wait(0.2)
-    end
+			local character = player.Character
+			if not character then return end
+			local rootPart = character:FindFirstChild("HumanoidRootPart")
+			local humanoid = character:FindFirstChildOfClass("Humanoid")
 
-    if rootPart then
-        for _, v in pairs(rootPart:GetChildren()) do
-            if (v.Name == "ADONIS_FLIGHT_POSITION" and v:IsA("BodyAngularVelocity")) or
-               (v.Name == "ADONIS_FLIGHT_VELOCITY" and v:IsA("BodyVelocity")) then
-                v:Destroy()
-            end
-        end
-        task.wait(0.1)
-        rootPart.Anchored = false
-    end
+			if rootPart then
+				rootPart.Anchored = true
+			end
 
-    targetPlayer = nil
-    originalPosition = nil
-    processCommand("clip") -- Ensure clipping is restored
-    return "Stopped flinging"
-end
+			-- Clear all velocities and constraints
+			for _, v in pairs(character:GetDescendants()) do
+				if v:IsA("BasePart") then
+					v.Velocity = Vector3.new()
+					v.RotVelocity = Vector3.new()
+					v.CanCollide = true
+					v.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5) -- Reset physics
+					for _, child in pairs(v:GetChildren()) do
+						if child:IsA("BodyVelocity") or child:IsA("BodyAngularVelocity") then
+							child:Destroy()
+						end
+					end
+				end
+			end
+
+			if humanoid then
+				humanoid.PlatformStand = false
+				humanoid.AutoRotate = true
+				humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+			end
+
+			task.wait(0.5) -- Longer stabilization for R15
+
+			if originalPosition and rootPart then
+				rootPart.CFrame = originalPosition
+				task.wait(0.2)
+			end
+
+			if rootPart then
+				for _, v in pairs(rootPart:GetChildren()) do
+					if (v.Name == "ADONIS_FLIGHT_POSITION" and v:IsA("BodyAngularVelocity")) or
+						(v.Name == "ADONIS_FLIGHT_VELOCITY" and v:IsA("BodyVelocity")) then
+						v:Destroy()
+					end
+				end
+				task.wait(0.1)
+				rootPart.Anchored = false
+			end
+
+			targetPlayer = nil
+			originalPosition = nil
+			processCommand("clip") -- Ensure clipping is restored
+			return "Stopped flinging"
+		end
 	}
 
 	for cmd in fullInput:gmatch("([^,]+)") do
