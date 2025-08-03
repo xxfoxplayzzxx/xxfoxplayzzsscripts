@@ -30,9 +30,12 @@ local ESPConfig = {
 
 -- ESP Storage
 local ESPObjects = {}
+local ESPLoopConnection = nil
 
 -- Create ESP components for a player
 local function CreateESP(player)
+    if ESPObjects[player] then return end -- Prevent duplicates
+    
     local gui = Instance.new("BillboardGui")
     gui.Name = "ESP_"..player.Name
     gui.Size = UDim2.new(4, 0, 6, 0)
@@ -45,6 +48,7 @@ local function CreateESP(player)
     frame.Size = UDim2.new(1, 0, 1, 0)
     frame.BackgroundTransparency = 0.7
     frame.BorderSizePixel = 1
+    frame.Visible = ESPConfig.Boxes
     frame.Parent = gui
     
     local nameLabel = Instance.new("TextLabel")
@@ -53,6 +57,7 @@ local function CreateESP(player)
     nameLabel.BackgroundTransparency = 1
     nameLabel.TextScaled = true
     nameLabel.Font = Enum.Font.SourceSansBold
+    nameLabel.Visible = ESPConfig.Names
     nameLabel.Parent = gui
     
     local healthBar = Instance.new("Frame")
@@ -60,6 +65,7 @@ local function CreateESP(player)
     healthBar.Position = UDim2.new(0.1, 0, 0.85, 0)
     healthBar.BorderSizePixel = 1
     healthBar.BackgroundColor3 = Color3.new(0, 0, 0)
+    healthBar.Visible = ESPConfig.HealthBars
     healthBar.Parent = gui
     
     local healthFill = Instance.new("Frame")
@@ -69,16 +75,16 @@ local function CreateESP(player)
     healthFill.Parent = healthBar
     
     local tracer
-if ESPConfig.Tracers then
-    tracer = Instance.new("Frame")
-    tracer.AnchorPoint = Vector2.new(0.5, 0.5)
-    tracer.Size = UDim2.new(0, 2, 0, 2) -- Small dot instead of stretched cube
-    tracer.BackgroundColor3 = color -- Use player color
-    tracer.BorderSizePixel = 0
-    tracer.ZIndex = 10
-    tracer.Visible = false
-    tracer.Parent = gui
-end
+    if ESPConfig.Tracers then
+        tracer = Instance.new("Frame")
+        tracer.AnchorPoint = Vector2.new(0.5, 0.5)
+        tracer.Size = UDim2.new(0, 200, 0, 2) -- Length will be adjusted in update
+        tracer.BackgroundColor3 = Color3.new(1, 1, 1) -- Default color, will be updated
+        tracer.BorderSizePixel = 0
+        tracer.ZIndex = 10
+        tracer.Visible = false
+        tracer.Parent = gui
+    end
     
     ESPObjects[player] = {
         GUI = gui,
@@ -94,29 +100,30 @@ end
 local function UpdateESP(player)
     if not ESPObjects[player] then return end
     
+    local esp = ESPObjects[player]
     local character = player.Character
     if not character then
-        ESPObjects[player].GUI.Enabled = false
+        esp.GUI.Enabled = false
         return
     end
     
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     if not humanoid or not rootPart then
-        ESPObjects[player].GUI.Enabled = false
+        esp.GUI.Enabled = false
         return
     end
     
     -- Calculate distance
     local distance = (rootPart.Position - Camera.CFrame.Position).Magnitude
     if distance > ESPConfig.MaxDistance then
-        ESPObjects[player].GUI.Enabled = false
+        esp.GUI.Enabled = false
         return
     end
     
     -- Set position and visibility
-    ESPObjects[player].GUI.Adornee = rootPart
-    ESPObjects[player].GUI.Enabled = true
+    esp.GUI.Adornee = rootPart
+    esp.GUI.Enabled = ESPConfig.Enabled
     
     -- Set colors based on team
     local color
@@ -128,79 +135,73 @@ local function UpdateESP(player)
     
     -- Update visuals
     if ESPConfig.Boxes then
-        ESPObjects[player].Frame.BackgroundColor3 = color
-        ESPObjects[player].Frame.BorderColor3 = color:lerp(Color3.new(0,0,0), 0.5)
-        ESPObjects[player].Frame.Visible = true
+        esp.Frame.BackgroundColor3 = color
+        esp.Frame.BorderColor3 = color:lerp(Color3.new(0,0,0), 0.5)
+        esp.Frame.Visible = true
     else
-        ESPObjects[player].Frame.Visible = false
+        esp.Frame.Visible = false
     end
     
     if ESPConfig.Names then
-        ESPObjects[player].NameLabel.Text = player.DisplayName ~= "" and player.DisplayName or player.Name
-        ESPObjects[player].NameLabel.TextColor3 = color
-        ESPObjects[player].NameLabel.Visible = true
+        esp.NameLabel.Text = player.DisplayName ~= "" and player.DisplayName or player.Name
+        esp.NameLabel.TextColor3 = color
+        esp.NameLabel.Visible = true
     else
-        ESPObjects[player].NameLabel.Visible = false
+        esp.NameLabel.Visible = false
     end
     
     if ESPConfig.HealthBars and humanoid then
         local healthPercent = humanoid.Health / humanoid.MaxHealth
-        ESPObjects[player].HealthFill.Size = UDim2.new(healthPercent, 0, 1, 0)
-        ESPObjects[player].HealthFill.BackgroundColor3 = Color3.fromRGB(
+        esp.HealthFill.Size = UDim2.new(healthPercent, 0, 1, 0)
+        esp.HealthFill.BackgroundColor3 = Color3.fromRGB(
             255 * (1 - healthPercent),
             255 * healthPercent,
             0
         )
-        ESPObjects[player].HealthBar.Visible = true
+        esp.HealthBar.Visible = true
     else
-        ESPObjects[player].HealthBar.Visible = false
+        esp.HealthBar.Visible = false
     end
     
     if ESPConfig.Distance then
-        ESPObjects[player].NameLabel.Text = string.format("%s [%dm]", 
-            ESPObjects[player].NameLabel.Text, 
+        esp.NameLabel.Text = string.format("%s [%dm]", 
+            esp.NameLabel.Text, 
             math.floor(distance))
     end
     
     -- Update tracer if enabled
-    if ESPObjects[player].Tracer then
-    ESPObjects[player].Tracer.BackgroundColor3 = color
-    ESPObjects[player].Tracer.Visible = ESPConfig.Tracers and ESPConfig.Enabled
-    
-    if ESPConfig.Tracers and ESPConfig.Enabled 
-       and LocalPlayer.Character 
-       and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+    if esp.Tracer then
+        esp.Tracer.BackgroundColor3 = color
+        esp.Tracer.Visible = false -- Default to hidden
         
-        local startPos = Camera:WorldToViewportPoint(LocalPlayer.Character.HumanoidRootPart.Position)
-        local endPos = Camera:WorldToViewportPoint(rootPart.Position)
-        
-        -- Only draw if both points are on screen
-        if startPos.Z > 0 and endPos.Z > 0 then
-            ESPObjects[player].Tracer.Position = UDim2.new(
-                0, (startPos.X + endPos.X)/2,
-                0, (startPos.Y + endPos.Y)/2
-            )
-            local length = math.sqrt(
-                math.pow(endPos.X - startPos.X, 2) + 
-                math.pow(endPos.Y - startPos.Y, 2)
-            )
-            ESPObjects[player].Tracer.Size = UDim2.new(0, length, 0, 2)
-            ESPObjects[player].Tracer.Rotation = math.deg(math.atan2(
-                endPos.Y - startPos.Y, 
-                endPos.X - startPos.X
-            ))
-            ESPObjects[player].Tracer.Visible = true
-        else
-            ESPObjects[player].Tracer.Visible = false
+        if ESPConfig.Tracers and ESPConfig.Enabled and LocalPlayer.Character then
+            local myRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if myRoot then
+                local startPos = Camera:WorldToViewportPoint(myRoot.Position)
+                local endPos = Camera:WorldToViewportPoint(rootPart.Position)
+                
+                -- Only draw if both points are on screen
+                if startPos.Z > 0 and endPos.Z > 0 then
+                    local midpoint = Vector2.new(
+                        (startPos.X + endPos.X)/2,
+                        (startPos.Y + endPos.Y)/2
+                    )
+                    local length = math.sqrt(
+                        (endPos.X - startPos.X)^2 + 
+                        (endPos.Y - startPos.Y)^2
+                    )
+                    local angle = math.deg(math.atan2(
+                        endPos.Y - startPos.Y, 
+                        endPos.X - startPos.X
+                    ))
+                    
+                    esp.Tracer.Position = UDim2.new(0, midpoint.X, 0, midpoint.Y)
+                    esp.Tracer.Size = UDim2.new(0, length, 0, 2)
+                    esp.Tracer.Rotation = angle
+                    esp.Tracer.Visible = true
+                end
+            end
         end
-    end
-end
-end
-
--- Main ESP loop
-local function ESPLoop()
-    for player, _ in pairs(ESPObjects) do
-        UpdateESP(player)
     end
 end
 
@@ -209,14 +210,10 @@ local function ToggleESP()
     ESPConfig.Enabled = not ESPConfig.Enabled
     
     if ESPConfig.Enabled then
-        -- Refresh all ESP objects
-        for player, esp in pairs(ESPObjects) do
-            if player and player.Parent then -- Check if player still exists
-                esp.GUI.Enabled = true
-                UpdateESP(player)
-            else
-                esp.GUI:Destroy()
-                ESPObjects[player] = nil
+        -- Create ESP for all players if not already existing
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                CreateESP(player)
             end
         end
         
@@ -224,7 +221,15 @@ local function ToggleESP()
         if not ESPLoopConnection then
             ESPLoopConnection = RunService.Heartbeat:Connect(function()
                 for player, _ in pairs(ESPObjects) do
-                    UpdateESP(player)
+                    if player and player.Parent then -- Check if player still exists
+                        UpdateESP(player)
+                    else
+                        -- Clean up if player left
+                        if ESPObjects[player] then
+                            ESPObjects[player].GUI:Destroy()
+                            ESPObjects[player] = nil
+                        end
+                    end
                 end
             end)
         end
@@ -236,15 +241,8 @@ local function ToggleESP()
                 esp.Tracer.Visible = false
             end
         end
-        
-        -- Clean up connection
-        if ESPLoopConnection then
-            ESPLoopConnection:Disconnect()
-            ESPLoopConnection = nil
-        end
     end
 end
-
 
 -- Keybind
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -253,6 +251,23 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
+-- Player handlers
+local function PlayerAdded(player)
+    if player ~= LocalPlayer then
+        CreateESP(player)
+        if ESPConfig.Enabled then
+            UpdateESP(player)
+        end
+    end
+end
+
+local function PlayerRemoving(player)
+    if ESPObjects[player] then
+        ESPObjects[player].GUI:Destroy()
+        ESPObjects[player] = nil
+    end
+end
+
 -- Initialization
 local function Init()
     -- Wait for character
@@ -260,27 +275,17 @@ local function Init()
         LocalPlayer.CharacterAdded:Wait()
     end
     
+    -- Set up player handlers
+    Players.PlayerAdded:Connect(PlayerAdded)
+    Players.PlayerRemoving:Connect(PlayerRemoving)
+    
     -- Create ESP for existing players
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            CreateESP(player)
-        end
+        PlayerAdded(player)
     end
     
-    -- Set up player added/removed handlers
-    Players.PlayerAdded:Connect(function(player)
-        CreateESP(player)
-    end)
-    
-    Players.PlayerRemoving:Connect(function(player)
-        if ESPObjects[player] then
-            ESPObjects[player].GUI:Destroy()
-            ESPObjects[player] = nil
-        end
-    end)
-    
-    -- Start ESP
-    ToggleESP()
+    -- Start with ESP off
+    ESPConfig.Enabled = false
 end
 
 Init()
