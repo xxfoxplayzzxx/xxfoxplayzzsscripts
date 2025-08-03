@@ -249,14 +249,16 @@ local function processCommand(fullInput)
 
 			return
 		end,
-		clip = function()
-			clip = true
-			    if NoclippingConnection then
+clip = function()
+    Clip = true
+
+    if NoclippingConnection then
         NoclippingConnection:Disconnect()
         NoclippingConnection = nil
     end
-			return
-		end,
+   
+    return
+end,
 		fly = function()
 			loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/refs/heads/main/Flight.Lua"))()
 			    inputBeganConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
