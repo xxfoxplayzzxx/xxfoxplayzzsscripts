@@ -465,11 +465,8 @@ end,
 				rootPart.Anchored = true
 			end
 
-			-- Re-enable R15 joints
 			for _, v in pairs(character:GetDescendants()) do
-				if v:IsA("Motor6D") then
-					v.Enabled = true
-				elseif v:IsA("BasePart") then
+				if v:IsA("BasePart") then
 					v.Velocity = Vector3.new()
 					v.RotVelocity = Vector3.new()
 					for _, child in pairs(v:GetChildren()) do
@@ -495,7 +492,7 @@ end,
 
 			if rootPart then
 				for _, v in pairs(rootPart:GetChildren()) do
-					if v.Name == "ADONIS_FLIGHT_POSITION" then
+					if v.Name == "ADONIS_FLIGHT_POSITION" and v:IsA("BodyAngularVelocity") then
 						v:Destroy()
 					end
 				end
