@@ -51,6 +51,7 @@ local validcmds = {
 	rejoin = true,
 	fling = true,
 	unfling = true,
+	reload = true,
 }
 
 local aliases = {
@@ -243,6 +244,11 @@ local function processCommand(fullInput)
 	overlay.Text = ""
 	local commandHandlers = {}
 	local commandHandlers = {
+		reload = function()
+		gui:Destroy
+		script:Destroy
+		return
+		end,
 		noclip = function()
 			Clip = false
 			task.wait(0.1)
