@@ -249,227 +249,201 @@ local function processCommand(fullInput)
 			return "Noclip enabled"
 		end,
 		clip = function()
-			Clip = true
-			if NoclippingConnection then
-				NoclippingConnection:Disconnect()
-				NoclippingConnection = nil
-			end
+		local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
-			-- Re-enable collisions (optional, since Roblox does this automatically)
-			local character = player.Character
-			if character then
-				for _, part in ipairs(character:GetDescendants()) do
-					if part:IsA("BasePart") then
-						part.CanCollide = true
-					end
-				end
-			end
+local player = Players.LocalPlayer
+local currentCharacter = nil
 
-			return "Noclip disabled"
-		end,
-		fly = function()
-			if fly == false then
-				fly = true
+-- Movement vars
+local directions = {
+    Forward = false,
+    Backward = false,
+    Left = false,
+    Right = false,
+    Up = false,
+    Down = false,
+}
 
-				-- Initialize flight system
-				local RunService = game:GetService("RunService")
-				local UserInputService = game:GetService("UserInputService")
+local maxSpeed = 3
+local speedIncrement = maxSpeed / 25
+local currentSpeed = 0
+local flying = false -- Default: OFF
+local noclipEnabled = false
 
-				local directions = {
-					Forward = false,
-					Backward = false,
-					Left = false,
-					Right = false,
-					Up = false,
-					Down = false,
-				}
+-- Cleanupable connections
+local inputBeganConn, inputEndedConn, steppedConn, preRenderConn
+local bodyGyro, alignPos, humanoid, hrp
 
-				local maxSpeed = 3
-				local speedIncrement = maxSpeed / 25
-				local currentSpeed = 0
+local function disconnectAll()
+    if inputBeganConn then inputBeganConn:Disconnect() inputBeganConn = nil end
+    if inputEndedConn then inputEndedConn:Disconnect() inputEndedConn = nil end
+    if steppedConn then steppedConn:Disconnect() steppedConn = nil end
+    if preRenderConn then preRenderConn:Disconnect() preRenderConn = nil end
+end
 
-				local inputBeganConn, inputEndedConn, preRenderConn
-				local bodyGyro, alignPos, humanoid, hrp
-				local charAddedConn, charRemovingConn
+local function alreadyHasFlightParts(part)
+    return part:FindFirstChild("ADONIS_FLIGHT_POSITION") and part:FindFirstChild("ADONIS_FLIGHT_GYRO_ATTACHMENT")
+end
 
-				local function findHumanoid(character)
-					-- Alternative to WaitForChildOfClass
-					for _, child in pairs(character:GetChildren()) do
-						if child:IsA("Humanoid") then
-							return child
-						end
-					end
-					return character:WaitForChild("Humanoid") -- Fallback
-				end
+local function loadFlightAssets(hrp)
+    if alreadyHasFlightParts(hrp) then return true end
 
-				local function toggleFlight()
-					if not alignPos or not bodyGyro or not humanoid then return end
+    local assetId = 116894377414956
+    local success, asset = pcall(function()
+        return game:GetObjects("rbxassetid://"..assetId)[1]
+    end)
 
-					if alignPos.Enabled then
-						-- Pause flight
-						alignPos.Enabled = false
-						bodyGyro.MaxTorque = Vector3.new(0, 0, 0)
-						humanoid.PlatformStand = false
-						commandHandlers.clip()
-						return "Flight paused (Press R to resume)"
-					else
-						-- Resume flight
-						alignPos.Enabled = true
-						bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-						humanoid.PlatformStand = true
-						commandHandlers.noclip()
-						return "Flight resumed"
-					end
-				end
+    if success and asset then
+        asset.Parent = hrp
 
-				local function disableFlight()
-					-- Disconnect all connections
-					if inputBeganConn then pcall(inputBeganConn.Disconnect, inputBeganConn) end
-					if inputEndedConn then pcall(inputEndedConn.Disconnect, inputEndedConn) end
-					if preRenderConn then pcall(preRenderConn.Disconnect, preRenderConn) end
-					if charAddedConn then pcall(charAddedConn.Disconnect, charAddedConn) end
-					if charRemovingConn then pcall(charRemovingConn.Disconnect, charRemovingConn) end
+        if asset:IsA("Model") then
+            for _, obj in ipairs(asset:GetChildren()) do
+                if not obj:IsA("LocalScript") then
+                    obj.Parent = hrp
+                end
+            end
+            asset:Destroy()
+        end
+        return true
+    else
+        warn("Failed to load flight assets")
+        return false
+    end
+end
 
-					-- Clean up flight parts
-					if hrp then
-						pcall(function()
-							if hrp:FindFirstChild("ADONIS_FLIGHT_POSITION") then
-								hrp.ADONIS_FLIGHT_POSITION:Destroy()
-							end
-							if hrp:FindFirstChild("ADONIS_FLIGHT_GYRO") then
-								hrp.ADONIS_FLIGHT_GYRO:Destroy()
-							end
-						end)
-					end
+local function updateNoclip(state)
+    noclipEnabled = state
+    local character = hrp.Parent
+    if not character then return end
+    local partsToCheck = {"Head", "UpperTorso", "LowerTorso", "Torso", "HumanoidRootPart"}
+    for _, name in ipairs(partsToCheck) do
+        local part = character:FindFirstChild(name)
+        if part and part:IsA("BasePart") then
+            part.CanCollide = not state
+        end
+    end
+end
 
-					-- Reset character state
-					if humanoid and humanoid.Parent then
-						pcall(function()
-							humanoid.PlatformStand = false
-						end)
-					end
+local function toggleFlight()
+    flying = not flying
+    humanoid.PlatformStand = flying
 
-					-- Disable noclip
-					if commandHandlers.clip then
-						pcall(commandHandlers.clip)
-					end
+    if flying then
+        alignPos.Position = hrp.Position -- Reset position when enabling
+        alignPos.Enabled = true
+        updateNoclip(true)
+        bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    else
+        alignPos.Enabled = false
+        updateNoclip(false)
+        bodyGyro.MaxTorque = Vector3.new(0, 0, 0)
+        currentSpeed = 0
+    end
+end
 
-					fly = false
-				end
+local function setupFlight(character)
+    if currentCharacter == character then return end
+    currentCharacter = character
 
-				local function setupFlight(character)
-					if not character or not character:IsDescendantOf(workspace) then
-						return false, "Invalid character"
-					end
+    character.AncestryChanged:Connect(function(_, parent)
+        if not parent then
+            currentCharacter = nil
+            disconnectAll()
+        end
+    end)
 
-					local success, err = pcall(function()
-						-- Get required parts with compatibility for older Roblox versions
-						hrp = character:WaitForChild("HumanoidRootPart", 2)
-						humanoid = findHumanoid(character)
+    hrp = character:WaitForChild("HumanoidRootPart")
+    humanoid = character:WaitForChild("Humanoid")
 
-						if not hrp or not humanoid then
-							error("Missing required character parts")
-						end
+    loadFlightAssets(hrp)
+    alignPos = hrp:WaitForChild("ADONIS_FLIGHT_POSITION")
+    alignPos.Position = hrp.Position
+    alignPos.Enabled = false -- Default: OFF
 
-						-- Clean up existing parts
-						for _, name in pairs({"ADONIS_FLIGHT_POSITION", "ADONIS_FLIGHT_GYRO"}) do
-							local part = hrp:FindFirstChild(name)
-							if part then part:Destroy() end
-						end
+    local existingGyro = hrp:FindFirstChild("ADONIS_FLIGHT_GYRO")
+    if existingGyro then existingGyro:Destroy() end
 
-						-- Create flight control parts
-						alignPos = Instance.new("BodyPosition")
-						alignPos.Name = "ADONIS_FLIGHT_POSITION"
-						alignPos.Position = hrp.Position
-						alignPos.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-						alignPos.P = 1250
-						alignPos.Enabled = true
-						alignPos.Parent = hrp
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.Name = "ADONIS_FLIGHT_GYRO"
+    bodyGyro.P = 3000
+    bodyGyro.MaxTorque = Vector3.new(0, 0, 0) -- Default: OFF
+    bodyGyro.Parent = hrp
 
-						bodyGyro = Instance.new("BodyGyro")
-						bodyGyro.Name = "ADONIS_FLIGHT_GYRO"
-						bodyGyro.P = 3000
-						bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-						bodyGyro.Parent = hrp
+    -- Initial state (flight OFF by default)
+    flying = false
+    humanoid.PlatformStand = false
+    updateNoclip(false)
 
-						-- Set character state
-						humanoid.PlatformStand = true
+    -- INPUTS
+    inputBeganConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed or input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 
-						-- Enable noclip
-						if commandHandlers.noclip then
-							commandHandlers.noclip()
-						end
+        if input.KeyCode == Enum.KeyCode.W then directions.Forward = true
+        elseif input.KeyCode == Enum.KeyCode.S then directions.Backward = true
+        elseif input.KeyCode == Enum.KeyCode.A then directions.Left = true
+        elseif input.KeyCode == Enum.KeyCode.D then directions.Right = true
+        elseif input.KeyCode == Enum.KeyCode.Space then directions.Up = true
+        elseif input.KeyCode == Enum.KeyCode.Q then directions.Down = true
+        elseif input.KeyCode == Enum.KeyCode.R then
+            toggleFlight()
+        end
+    end)
 
-						-- Input handling
-						inputBeganConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-							if gameProcessed then return end
+    inputEndedConn = UserInputService.InputEnded:Connect(function(input, gameProcessed)
+        if gameProcessed or input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 
-							if input.KeyCode == Enum.KeyCode.W then directions.Forward = true
-							elseif input.KeyCode == Enum.KeyCode.S then directions.Backward = true
-							elseif input.KeyCode == Enum.KeyCode.A then directions.Left = true
-							elseif input.KeyCode == Enum.KeyCode.D then directions.Right = true
-							elseif input.KeyCode == Enum.KeyCode.Space then directions.Up = true
-							elseif input.KeyCode == Enum.KeyCode.Q then directions.Down = true
-							elseif input.KeyCode == Enum.KeyCode.R then
-								return toggleFlight()
-							end
-						end)
+        if input.KeyCode == Enum.KeyCode.W then directions.Forward = false
+        elseif input.KeyCode == Enum.KeyCode.S then directions.Backward = false
+        elseif input.KeyCode == Enum.KeyCode.A then directions.Left = false
+        elseif input.KeyCode == Enum.KeyCode.D then directions.Right = false
+        elseif input.KeyCode == Enum.KeyCode.Space then directions.Up = false
+        elseif input.KeyCode == Enum.KeyCode.Q then directions.Down = false
+        end
+    end)
 
-						-- Movement handling
-						preRenderConn = RunService.PreRender:Connect(function()
-							if not hrp or not hrp.Parent or not humanoid or not humanoid.Parent or not alignPos.Enabled then
-								return
-							end
+    -- Noclip updating
+    steppedConn = RunService.Stepped:Connect(function()
+        updateNoclip(noclipEnabled)
+    end)
 
-							local cam = workspace.CurrentCamera
-							if not cam then return end
+    -- Movement & rotation
+    preRenderConn = RunService.PreRender:Connect(function()
+        if not flying then
+            bodyGyro.CFrame = hrp.CFrame
+            return
+        end
 
-							local velocity = Vector3.new()
+        local cam = workspace.CurrentCamera
+        local velocity = Vector3.new()
 
-							if not (directions.Forward or directions.Backward or directions.Up or directions.Down or directions.Left or directions.Right) then
-								currentSpeed = 0
-							else
-								currentSpeed = math.min(currentSpeed + speedIncrement, maxSpeed)
-							end
+        if not (directions.Forward or directions.Backward or directions.Up or directions.Down or directions.Left or directions.Right) then
+            currentSpeed = 0
+        else
+            currentSpeed = math.min(currentSpeed + speedIncrement, maxSpeed)
+        end
 
-							if directions.Up then velocity += Vector3.new(0, currentSpeed, 0) end
-							if directions.Down then velocity += Vector3.new(0, -currentSpeed, 0) end
-							if directions.Forward then velocity += cam.CFrame.LookVector * currentSpeed end
-							if directions.Backward then velocity -= cam.CFrame.LookVector * currentSpeed end
-							if directions.Left then velocity -= cam.CFrame.RightVector * currentSpeed end
-							if directions.Right then velocity += cam.CFrame.RightVector * currentSpeed end
+        if directions.Up then velocity += Vector3.new(0, currentSpeed, 0) end
+        if directions.Down then velocity += Vector3.new(0, -currentSpeed, 0) end
+        if directions.Forward then velocity += cam.CFrame.LookVector * currentSpeed end
+        if directions.Backward then velocity -= cam.CFrame.LookVector * currentSpeed end
+        if directions.Left then velocity -= cam.CFrame.RightVector * currentSpeed end
+        if directions.Right then velocity += cam.CFrame.RightVector * currentSpeed end
 
-							alignPos.Position += velocity
-							bodyGyro.CFrame = CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector)
-						end)
-					end)
+        alignPos.Position += velocity
 
-					if not success then
-						warn("Flight setup failed: "..tostring(err))
-						disableFlight()
-						return false, err
-					end
+        local pos = hrp.Position
+        bodyGyro.CFrame = CFrame.new(pos, pos + cam.CFrame.LookVector)
+    end)
+end
 
-					return true
-				end
+-- Connect setup
+player.CharacterAdded:Connect(setupFlight)
+if player.Character then
+    setupFlight(player.Character)
+end
 
-				-- Initial setup
-				if player.Character then
-					setupFlight(player.Character)
-				end
-
-				-- Handle character changes
-				charAddedConn = player.CharacterAdded:Connect(function(character)
-					setupFlight(character)
-				end)
-
-				-- Clean up when character is lost
-				charRemovingConn = player.CharacterRemoving:Connect(disableFlight)
-
-				return "Flight enabled (WASD/Space/Q to move, R to toggle, 'unfly' to disable)"
-			else
-				return "Flight is already enabled"
-			end
 		end,
 
 		unfly = function()
