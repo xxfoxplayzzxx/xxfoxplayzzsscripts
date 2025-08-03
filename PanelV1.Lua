@@ -396,7 +396,7 @@ end,
 fling = function(args)
     local targetName = args:match("%S+") or ""
     targetPlayer = nil
-    local flingThreshold = 500 -- Velocity threshold to consider target "flung"
+    local flingThreshold = 100
 
     -- First clean up any existing fling effects
     processCommand("unfling")
@@ -489,7 +489,6 @@ fling = function(args)
     local cycleStart = tick()
     local targetFlingConfirmed = false
 
-    -- Function to check if target is flung
     local function isTargetFlinging(targetRoot)
         if not targetRoot then return false end
         local velocity = targetRoot.Velocity.Magnitude
@@ -501,7 +500,7 @@ fling = function(args)
         if not flinging then return end
         
         -- Auto-stop after 3 seconds if target not flung
-        if tick() - cycleStart >= 3 and not targetFlingConfirmed then
+        if tick() - cycleStart >= 1.5 and not targetFlingConfirmed then
             processCommand("unfling")
             return
         end
