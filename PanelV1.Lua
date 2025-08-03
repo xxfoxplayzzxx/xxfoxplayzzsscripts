@@ -258,25 +258,20 @@ local function processCommand(fullInput)
 			return
 		end,
 fly = function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/refs/heads/main/Flight.Lua"))()
-
-
-
-    inputBeganConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed or input.UserInputType ~= Enum.UserInputType.Keyboard then return end
-
-        if input.KeyCode == Enum.KeyCode.R then
-            if flyclip == false then
-                processCommand("noclip")
-            else
-                processCommand("clip")
-            end
+loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/refs/heads/main/Flight.Lua"))()
+    
+    local rKeyConnection
+    rKeyConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed or input.KeyCode ~= Enum.KeyCode.R then return end
+        
+        if Clip then
+            processCommand("noclip")
+        else
+            processCommand("clip")
         end
     end)
-
     return
-end
-
+end,
 		saveinstance = function()
 			local synsaveinstance = loadstring(game:HttpGet("https://raw.githubusercontent.com/luau/SynSaveInstance/main/saveinstance.luau"))()
 			synsaveinstance({mode="full", ShowStatus=true})
