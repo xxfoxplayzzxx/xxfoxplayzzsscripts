@@ -396,6 +396,7 @@ end,
 fling = function(args)
     local targetName = args:match("%S+") or ""
     targetPlayer = nil
+    local flingThreshold = 500 -- Velocity threshold to consider target "flung"
 
     -- First clean up any existing fling effects
     processCommand("unfling")
@@ -422,20 +423,20 @@ fling = function(args)
         if v:IsA("BasePart") then
             v.Velocity = Vector3.new()
             v.RotVelocity = Vector3.new()
-            v.CustomPhysicalProperties = PhysicalProperties.new(1, 0.3, 0.5) -- Better physics for flinging
+            v.CustomPhysicalProperties = PhysicalProperties.new(1, 0.3, 0.5)
             v.CanCollide = false
         end
     end
     task.wait(0.1)
 
     if targetName == "" then
-        -- Improved self-fling (spin in place)
+        -- Self-fling (spin in place)
         rootPart.Anchored = false
         local bambam = Instance.new("BodyAngularVelocity")
         bambam.Name = "ADONIS_FLIGHT_POSITION"
         bambam.Parent = rootPart
         bambam.AngularVelocity = Vector3.new(0, 99999, 0)
-        bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge) -- Changed to affect all axes
+        bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
         bambam.P = math.huge
 
         flinging = true
@@ -465,11 +466,10 @@ fling = function(args)
     humanoid.PlatformStand = true
     rootPart.Anchored = false
 
-    -- Create velocity for better flinging
+    -- Create velocity for flinging
     local bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.Name = "ADONIS_FLIGHT_VELOCITY"
     bodyVelocity.Parent = rootPart
-    bodyVelocity.Velocity = Vector3.new(0, 100, 0)
     bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
     bodyVelocity.P = math.huge
 
@@ -480,26 +480,42 @@ fling = function(args)
     bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
     bambam.P = math.huge
 
+    -- Teleport directly to target (no offset)
     if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        rootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
+        rootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
     end
 
     flinging = true
     local cycleStart = tick()
+    local targetFlingConfirmed = false
+
+    -- Function to check if target is flung
+    local function isTargetFlinging(targetRoot)
+        if not targetRoot then return false end
+        local velocity = targetRoot.Velocity.Magnitude
+        local rotVelocity = targetRoot.RotVelocity.Magnitude
+        return velocity > flingThreshold or rotVelocity > flingThreshold
+    end
 
     flingLoop = RunService.Heartbeat:Connect(function()
         if not flinging then return end
         
-        if tick() - cycleStart >= 1.5 then
+        -- Auto-stop after 3 seconds if target not flung
+        if tick() - cycleStart >= 3 and not targetFlingConfirmed then
             processCommand("unfling")
             return
         end
         
         if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            -- Improved target tracking with better physics
-            local targetPos = targetPlayer.Character.HumanoidRootPart.Position
-            rootPart.CFrame = CFrame.new(rootPart.Position, targetPos) * CFrame.new(0, 0, -2)
-            rootPart.Velocity = (targetPos - rootPart.Position).Unit * 100 + Vector3.new(0, 50, 0)
+            local targetRoot = targetPlayer.Character.HumanoidRootPart
+            
+            -- Check if target has been flung
+            if not targetFlingConfirmed and isTargetFlinging(targetRoot) then
+                targetFlingConfirmed = true
+            end
+            
+            -- No upward velocity or offset - pure angular velocity
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
             rootPart.RotVelocity = Vector3.new(20000, 20000, 20000)
         else
             processCommand("unfling")
@@ -508,7 +524,6 @@ fling = function(args)
 
     return "Flinging "..targetPlayer.Name
 end,
-
 unfling = function()
     flinging = false
 
