@@ -19,7 +19,6 @@ local maxSpeed = 3
 local speedIncrement = maxSpeed / 25
 local currentSpeed = 0
 local flying = false -- Default: OFF
-local noclipEnabled = false
 
 -- Cleanupable connections
 local inputBeganConn, inputEndedConn, steppedConn, preRenderConn
@@ -62,19 +61,6 @@ local function loadFlightAssets(hrp)
     end
 end
 
-local function updateNoclip(state)
-    noclipEnabled = state
-    local character = hrp.Parent
-    if not character then return end
-    local partsToCheck = {"Head", "UpperTorso", "LowerTorso", "Torso", "HumanoidRootPart"}
-    for _, name in ipairs(partsToCheck) do
-        local part = character:FindFirstChild(name)
-        if part and part:IsA("BasePart") then
-            part.CanCollide = not state
-        end
-    end
-end
-
 local function toggleFlight()
     flying = not flying
     humanoid.PlatformStand = flying
@@ -82,11 +68,9 @@ local function toggleFlight()
     if flying then
         alignPos.Position = hrp.Position -- Reset position when enabling
         alignPos.Enabled = true
-        updateNoclip(true)
         bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
     else
         alignPos.Enabled = false
-        updateNoclip(false)
         bodyGyro.MaxTorque = Vector3.new(0, 0, 0)
         currentSpeed = 0
     end
@@ -123,7 +107,6 @@ local function setupFlight(character)
     -- Initial state (flight OFF by default)
     flying = false
     humanoid.PlatformStand = false
-    updateNoclip(false)
 
     -- INPUTS
     inputBeganConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -150,11 +133,6 @@ local function setupFlight(character)
         elseif input.KeyCode == Enum.KeyCode.Space then directions.Up = false
         elseif input.KeyCode == Enum.KeyCode.Q then directions.Down = false
         end
-    end)
-
-    -- Noclip updating
-    steppedConn = RunService.Stepped:Connect(function()
-        updateNoclip(noclipEnabled)
     end)
 
     -- Movement & rotation
