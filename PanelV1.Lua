@@ -396,9 +396,10 @@ end,
 fling = function(args)
     local targetName = args:match("%S+") or ""
     targetPlayer = nil
-    local flingThreshold = 100
+    local flingThreshold = 150 -- Increased threshold for better detection
     local MAX_FLING_TIME = 1.5
-    local FOLLOW_SPEED = 20 -- Increased follow speed (studs/second)
+    local FOLLOW_SPEED = 20
+    local REQUIRED_GROUND_TIME = 0.3 -- Target must be grounded for this long before fling
 
     -- Clean up existing fling
     processCommand("unfling")
@@ -426,7 +427,7 @@ fling = function(args)
             v.RotVelocity = Vector3.new()
             v.CustomPhysicalProperties = PhysicalProperties.new(1, 0.3, 0.5)
             v.CanCollide = false
-            v.Massless = true -- Prevents you from being affected by physics
+            v.Massless = true
         end
     end
     task.wait(0.1)
@@ -445,24 +446,51 @@ fling = function(args)
         return "Spinning in place"
     end
 
-    -- Target player selection
+    -- Target player selection with fling state check
+    local function isValidTarget(p)
+        if not p.Character then return false end
+        local targetRoot = p.Character:FindFirstChild("HumanoidRootPart")
+        if not targetRoot then return false end
+        
+        -- Check if target is already flung
+        local velocity = targetRoot.Velocity.Magnitude
+        local rotVelocity = targetRoot.RotVelocity.Magnitude
+        return velocity < flingThreshold and rotVelocity < flingThreshold
+    end
+
     if targetName:lower() == "random" then
-        local players = Players:GetPlayers()
-        if #players > 0 then
-            targetPlayer = players[math.random(1,#players)]
+        local validPlayers = {}
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= player and isValidTarget(p) then
+                table.insert(validPlayers, p)
+            end
+        end
+        
+        if #validPlayers > 0 then
+            targetPlayer = validPlayers[math.random(1,#validPlayers)]
         else
-            return "No players found"
+            return "No valid targets found"
         end
     else
         for _, p in pairs(Players:GetPlayers()) do
-            if string.find(string.lower(p.Name), string.lower(targetName)) then
+            if string.find(string.lower(p.Name), string.lower(targetName)) and isValidTarget(p) then
                 targetPlayer = p
                 break
             end
         end
     end
 
-    if not targetPlayer then return "Player not found" end
+    if not targetPlayer then return "No valid target found" end
+
+    -- Additional ground check
+    local targetRoot = targetPlayer.Character.HumanoidRootPart
+    local groundCheckStart = tick()
+    while (tick() - groundCheckStart) < REQUIRED_GROUND_TIME do
+        if not isValidTarget(targetPlayer) then
+            return "Target started flying before fling could begin"
+        end
+        task.wait(0.1)
+    end
 
     originalPosition = rootPart.CFrame
     humanoid.PlatformStand = true
@@ -490,7 +518,13 @@ fling = function(args)
         if not targetRoot then return false end
         local velocity = targetRoot.Velocity.Magnitude
         local rotVelocity = targetRoot.RotVelocity.Magnitude
-        return velocity > flingThreshold or rotVelocity > flingThreshold
+        
+        -- More sophisticated fling detection
+        local isFlying = velocity > flingThreshold
+        local isSpinning = rotVelocity > flingThreshold
+        local isMovingUp = targetRoot.Velocity.Y > 25
+        
+        return isFlying or (isSpinning and isMovingUp)
     end
 
     -- Clean up old connection
@@ -516,23 +550,27 @@ fling = function(args)
         if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local targetRoot = targetPlayer.Character.HumanoidRootPart
             
-            -- Smooth following with increased speed
-            local targetPos = targetRoot.Position
-            local direction = (targetPos - rootPart.Position).Unit
-            local distance = (targetPos - rootPart.Position).Magnitude
-            local moveSpeed = math.min(FOLLOW_SPEED, distance * 5) -- Dynamic speed adjustment
+            -- Enhanced fling detection
+            if isTargetFlinging(targetRoot) then
+                if not targetFlingConfirmed then
+                    targetFlingConfirmed = true
+                    -- Maintain fling for a moment longer to ensure good launch
+                    task.delay(0.3, function()
+                        if flinging then processCommand("unfling") end
+                    end)
+                end
+                return -- Stop following if target is flung
+            end
             
-            bodyPosition.Position = rootPart.Position + (direction * moveSpeed * 0.016) -- 0.016 ≈ 1/60 (Heartbeat)
-            
-            -- Apply rotational forces
-            rootPart.RotVelocity = Vector3.new(20000, 20000, 20000)
-            
-            -- Fling detection
-            if not targetFlingConfirmed and isTargetFlinging(targetRoot) then
-                targetFlingConfirmed = true
-                task.delay(0.5, function()
-                    if flinging then processCommand("unfling") end
-                end)
+            -- Only follow if target isn't already flung
+            if not targetFlingConfirmed then
+                local targetPos = targetRoot.Position
+                local direction = (targetPos - rootPart.Position).Unit
+                local distance = (targetPos - rootPart.Position).Magnitude
+                local moveSpeed = math.min(FOLLOW_SPEED, distance * 5)
+                
+                bodyPosition.Position = rootPart.Position + (direction * moveSpeed * 0.016)
+                rootPart.RotVelocity = Vector3.new(20000, 20000, 20000)
             end
         else
             processCommand("unfling")
