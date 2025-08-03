@@ -259,16 +259,34 @@ local function processCommand(fullInput)
 		end,
 fly = function()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/refs/heads/main/Flight.Lua"))()
-    
+    local isfly = false
     local rKeyConnection
     rKeyConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed or input.KeyCode ~= Enum.KeyCode.R then return end
-        
-        if Clip then
-            processCommand("noclip")
-        else
-            processCommand("clip")
-        end
+		if isfly == false then
+        	isfly = true
+						Clip = false
+			task.wait(0.1)
+			if NoclippingConnection then
+				NoclippingConnection:Disconnect()
+			end
+			NoclippingConnection = RunService.Stepped:Connect(function()
+				local character = player.Character
+				if not character then return end
+				for _, part in ipairs(character:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.CanCollide = false
+					end
+				end
+			end)
+		else
+			isfly = false
+						clip = true
+			    if NoclippingConnection then
+        NoclippingConnection:Disconnect()
+        NoclippingConnection = nil
+    end
+		end
     end)
     return
 end,
