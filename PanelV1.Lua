@@ -246,6 +246,7 @@ local function processCommand(fullInput)
 	local commandHandlers = {
 		reload = function()
 		gui:Destroy
+		loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/refs/heads/main/PanelV1.Lua"))()
 		script:Destroy
 		return
 		end,
