@@ -262,7 +262,7 @@ local function processCommand(fullInput)
 			    inputBeganConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed or input.UserInputType ~= Enum.UserInputType.Keyboard then return end
         if input.KeyCode == Enum.KeyCode.R then
-			if flyclip == false
+			if flyclip == false then
 				processCommand("noclip")
 			else
 				processCommand("clip")
