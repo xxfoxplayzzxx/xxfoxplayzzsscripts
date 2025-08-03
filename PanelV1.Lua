@@ -480,11 +480,6 @@ fling = function(args)
     bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
     bambam.P = math.huge
 
-    -- Initial teleport to target
-    if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        rootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
-    end
-
     flinging = true
     local cycleStart = tick()
     local targetFlingConfirmed = false
@@ -519,6 +514,15 @@ fling = function(args)
         if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local targetRoot = targetPlayer.Character.HumanoidRootPart
             
+            -- CRITICAL FIX: Continuous position updating
+            local targetCFrame = targetRoot.CFrame
+            rootPart.CFrame = targetCFrame
+            
+            -- Apply forces relative to target's movement
+            local targetVel = targetRoot.Velocity
+            bodyVelocity.Velocity = targetVel * 1.1 -- Slightly exceed target's velocity
+            rootPart.RotVelocity = Vector3.new(20000, 20000, 20000)
+            
             -- Fling detection
             if not targetFlingConfirmed and isTargetFlinging(targetRoot) then
                 targetFlingConfirmed = true
@@ -526,11 +530,6 @@ fling = function(args)
                     if flinging then processCommand("unfling") end
                 end)
             end
-            
-            -- CRITICAL FIX: Maintain position on target
-            rootPart.CFrame = targetRoot.CFrame
-            rootPart.RotVelocity = Vector3.new(20000, 20000, 20000)
-            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
         else
             processCommand("unfling")
         end
