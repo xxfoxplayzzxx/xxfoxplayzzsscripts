@@ -416,22 +416,26 @@ fling = function(args)
     humanoid.PlatformStand = false
     humanoid.AutoRotate = true
     rootPart.Anchored = true
+    
+    -- Improved physics preparation
     for _, v in pairs(character:GetDescendants()) do
         if v:IsA("BasePart") then
             v.Velocity = Vector3.new()
             v.RotVelocity = Vector3.new()
+            v.CustomPhysicalProperties = PhysicalProperties.new(1, 0.3, 0.5) -- Better physics for flinging
+            v.CanCollide = false
         end
     end
     task.wait(0.1)
 
     if targetName == "" then
-        -- Self-fling (spin in place)
+        -- Improved self-fling (spin in place)
         rootPart.Anchored = false
         local bambam = Instance.new("BodyAngularVelocity")
         bambam.Name = "ADONIS_FLIGHT_POSITION"
         bambam.Parent = rootPart
         bambam.AngularVelocity = Vector3.new(0, 99999, 0)
-        bambam.MaxTorque = Vector3.new(0, math.huge, 0)
+        bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge) -- Changed to affect all axes
         bambam.P = math.huge
 
         flinging = true
@@ -461,6 +465,14 @@ fling = function(args)
     humanoid.PlatformStand = true
     rootPart.Anchored = false
 
+    -- Create velocity for better flinging
+    local bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.Name = "ADONIS_FLIGHT_VELOCITY"
+    bodyVelocity.Parent = rootPart
+    bodyVelocity.Velocity = Vector3.new(0, 100, 0)
+    bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    bodyVelocity.P = math.huge
+
     local bambam = Instance.new("BodyAngularVelocity")
     bambam.Name = "ADONIS_FLIGHT_POSITION"
     bambam.Parent = rootPart
@@ -469,31 +481,34 @@ fling = function(args)
     bambam.P = math.huge
 
     if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        rootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2) -- Slight offset
+        rootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2)
     end
 
     flinging = true
     local cycleStart = tick()
 
-flingLoop = RunService.Heartbeat:Connect(function()
-    if not flinging then return end
-    
-    if tick() - cycleStart >= 1.5 then
-        processCommand("unfling")
-        return
-    end
-    
-    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        rootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
-        rootPart.Velocity = Vector3.new(0,10000,0)
-        rootPart.RotVelocity = Vector3.new(20000,20000,20000)
-    else
-        processCommand("unfling")
-    end
-end)
+    flingLoop = RunService.Heartbeat:Connect(function()
+        if not flinging then return end
+        
+        if tick() - cycleStart >= 1.5 then
+            processCommand("unfling")
+            return
+        end
+        
+        if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            -- Improved target tracking with better physics
+            local targetPos = targetPlayer.Character.HumanoidRootPart.Position
+            rootPart.CFrame = CFrame.new(rootPart.Position, targetPos) * CFrame.new(0, 0, -2)
+            rootPart.Velocity = (targetPos - rootPart.Position).Unit * 100 + Vector3.new(0, 50, 0)
+            rootPart.RotVelocity = Vector3.new(20000, 20000, 20000)
+        else
+            processCommand("unfling")
+        end
+    end)
 
     return "Flinging "..targetPlayer.Name
 end,
+
 unfling = function()
     flinging = false
 
@@ -516,6 +531,8 @@ unfling = function()
         if v:IsA("BasePart") then
             v.Velocity = Vector3.new()
             v.RotVelocity = Vector3.new()
+            v.CanCollide = true
+            v.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5) -- Reset physics
             for _, child in pairs(v:GetChildren()) do
                 if child:IsA("BodyVelocity") or child:IsA("BodyAngularVelocity") then
                     child:Destroy()
@@ -539,7 +556,8 @@ unfling = function()
 
     if rootPart then
         for _, v in pairs(rootPart:GetChildren()) do
-            if v.Name == "ADONIS_FLIGHT_POSITION" and v:IsA("BodyAngularVelocity") then
+            if (v.Name == "ADONIS_FLIGHT_POSITION" and v:IsA("BodyAngularVelocity")) or
+               (v.Name == "ADONIS_FLIGHT_VELOCITY" and v:IsA("BodyVelocity")) then
                 v:Destroy()
             end
         end
@@ -549,8 +567,9 @@ unfling = function()
 
     targetPlayer = nil
     originalPosition = nil
+    processCommand("clip") -- Ensure clipping is restored
     return "Stopped flinging"
-end,
+end
 	}
 
 	for cmd in fullInput:gmatch("([^,]+)") do
