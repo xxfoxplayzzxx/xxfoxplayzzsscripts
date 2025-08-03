@@ -69,13 +69,16 @@ local function CreateESP(player)
     healthFill.Parent = healthBar
     
     local tracer
-    if ESPConfig.Tracers then
-        tracer = Instance.new("Frame")
-        tracer.Size = UDim2.new(0.05, 0, 0.05, 0)
-        tracer.BackgroundColor3 = Color3.new(1, 1, 1)
-        tracer.BorderSizePixel = 0
-        tracer.Parent = gui
-    end
+if ESPConfig.Tracers then
+    tracer = Instance.new("Frame")
+    tracer.AnchorPoint = Vector2.new(0.5, 0.5)
+    tracer.Size = UDim2.new(0, 2, 0, 2) -- Small dot instead of stretched cube
+    tracer.BackgroundColor3 = color -- Use player color
+    tracer.BorderSizePixel = 0
+    tracer.ZIndex = 10
+    tracer.Visible = false
+    tracer.Parent = gui
+end
     
     ESPObjects[player] = {
         GUI = gui,
@@ -161,29 +164,37 @@ local function UpdateESP(player)
     
     -- Update tracer if enabled
     if ESPObjects[player].Tracer then
-        ESPObjects[player].Tracer.BackgroundColor3 = color
-        ESPObjects[player].Tracer.Visible = ESPConfig.Tracers
+    ESPObjects[player].Tracer.BackgroundColor3 = color
+    ESPObjects[player].Tracer.Visible = ESPConfig.Tracers and ESPConfig.Enabled
+    
+    if ESPConfig.Tracers and ESPConfig.Enabled 
+       and LocalPlayer.Character 
+       and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
         
-        if ESPConfig.Tracers and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local startPos = Camera:WorldToViewportPoint(LocalPlayer.Character.HumanoidRootPart.Position)
-            local endPos = Camera:WorldToViewportPoint(rootPart.Position)
-            
+        local startPos = Camera:WorldToViewportPoint(LocalPlayer.Character.HumanoidRootPart.Position)
+        local endPos = Camera:WorldToViewportPoint(rootPart.Position)
+        
+        -- Only draw if both points are on screen
+        if startPos.Z > 0 and endPos.Z > 0 then
             ESPObjects[player].Tracer.Position = UDim2.new(
-                0.5, 0, 
-                0.5, 0
+                0, (startPos.X + endPos.X)/2,
+                0, (startPos.Y + endPos.Y)/2
             )
-            ESPObjects[player].Tracer.Size = UDim2.new(
-                0, 
-                math.abs(startPos.X - endPos.X), 
-                0, 
-                math.abs(startPos.Y - endPos.Y)
+            local length = math.sqrt(
+                math.pow(endPos.X - startPos.X, 2) + 
+                math.pow(endPos.Y - startPos.Y, 2)
             )
+            ESPObjects[player].Tracer.Size = UDim2.new(0, length, 0, 2)
             ESPObjects[player].Tracer.Rotation = math.deg(math.atan2(
                 endPos.Y - startPos.Y, 
                 endPos.X - startPos.X
             ))
+            ESPObjects[player].Tracer.Visible = true
+        else
+            ESPObjects[player].Tracer.Visible = false
         end
     end
+end
 end
 
 -- Main ESP loop
@@ -198,32 +209,42 @@ local function ToggleESP()
     ESPConfig.Enabled = not ESPConfig.Enabled
     
     if ESPConfig.Enabled then
-        -- Enable for existing players
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and not ESPObjects[player] then
-                CreateESP(player)
-            end
-        end
-        
-        -- Connect to new players
-        Players.PlayerAdded:Connect(function(player)
-            if not ESPObjects[player] then
-                CreateESP(player)
-            end
-        end)
-        
-        -- Start update loop
-        RunService:BindToRenderStep("ESPUpdate", Enum.RenderPriority.Last.Value, ESPLoop)
-    else
-        -- Disable and clean up
-        RunService:UnbindFromRenderStep("ESPUpdate")
-        
+        -- Refresh all ESP objects
         for player, esp in pairs(ESPObjects) do
-            esp.GUI:Destroy()
+            if player and player.Parent then -- Check if player still exists
+                esp.GUI.Enabled = true
+                UpdateESP(player)
+            else
+                esp.GUI:Destroy()
+                ESPObjects[player] = nil
+            end
         end
-        ESPObjects = {}
+        
+        -- Start update loop if not already running
+        if not ESPLoopConnection then
+            ESPLoopConnection = RunService.Heartbeat:Connect(function()
+                for player, _ in pairs(ESPObjects) do
+                    UpdateESP(player)
+                end
+            end)
+        end
+    else
+        -- Disable all ESP objects
+        for _, esp in pairs(ESPObjects) do
+            esp.GUI.Enabled = false
+            if esp.Tracer then
+                esp.Tracer.Visible = false
+            end
+        end
+        
+        -- Clean up connection
+        if ESPLoopConnection then
+            ESPLoopConnection:Disconnect()
+            ESPLoopConnection = nil
+        end
     end
 end
+
 
 -- Keybind
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
