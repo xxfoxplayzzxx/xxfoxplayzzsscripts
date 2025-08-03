@@ -397,6 +397,7 @@ fling = function(args)
     local targetName = args:match("%S+") or ""
     targetPlayer = nil
     local flingThreshold = 100
+    local MAX_FLING_TIME = 1.5  -- Maximum time before auto-unfling
 
     -- First clean up any existing fling effects
     processCommand("unfling")
@@ -496,12 +497,25 @@ fling = function(args)
         return velocity > flingThreshold or rotVelocity > flingThreshold
     end
 
+    -- Disconnect any existing loop first
+    if flingLoop then
+        flingLoop:Disconnect()
+        flingLoop = nil
+    end
+
     flingLoop = RunService.Heartbeat:Connect(function()
-        if not flinging then return end
+        if not flinging then 
+            if flingLoop then
+                flingLoop:Disconnect()
+            end
+            return 
+        end
         
-        -- Auto-stop after 3 seconds if target not flung
-        if tick() - cycleStart >= 1.5 and not targetFlingConfirmed then
-            processCommand("unfling")
+        -- Auto-unfling after timeout
+        if tick() - cycleStart >= MAX_FLING_TIME then
+            if not targetFlingConfirmed then
+                processCommand("unfling")
+            end
             return
         end
         
@@ -511,9 +525,14 @@ fling = function(args)
             -- Check if target has been flung
             if not targetFlingConfirmed and isTargetFlinging(targetRoot) then
                 targetFlingConfirmed = true
+                -- Optional: Add a short delay after successful fling
+                task.delay(0.5, function()
+                    if flinging then
+                        processCommand("unfling")
+                    end
+                end)
             end
             
-            -- No upward velocity or offset - pure angular velocity
             bodyVelocity.Velocity = Vector3.new(0, 0, 0)
             rootPart.RotVelocity = Vector3.new(20000, 20000, 20000)
         else
