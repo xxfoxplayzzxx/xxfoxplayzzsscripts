@@ -249,22 +249,20 @@ local function processCommand(fullInput)
 
 			return
 		end,
-clip = function()
-    Clip = true
-
-    if NoclippingConnection then
+		clip = function()
+			clip = true
+			    if NoclippingConnection then
         NoclippingConnection:Disconnect()
         NoclippingConnection = nil
     end
-   
-    return
-end,
+			return
+		end,
 		fly = function()
 			loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/refs/heads/main/Flight.Lua"))()
 			    inputBeganConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed or input.UserInputType ~= Enum.UserInputType.Keyboard then return end
         if input.KeyCode == Enum.KeyCode.R then
-			if flyclip = false
+			if flyclip == false
 				processCommand("noclip")
 			else
 				processCommand("clip")
