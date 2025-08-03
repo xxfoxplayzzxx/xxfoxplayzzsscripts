@@ -398,6 +398,7 @@ fling = function(args)
     targetPlayer = nil
     local flingThreshold = 100
     local MAX_FLING_TIME = 1.5
+    local FOLLOW_SPEED = 20 -- Increased follow speed (studs/second)
 
     -- Clean up existing fling
     processCommand("unfling")
@@ -414,7 +415,7 @@ fling = function(args)
     processCommand("noclip")
     task.wait(0.1)
 
-    -- Reset physics
+    -- Reset physics with anti-fling measures
     humanoid.PlatformStand = false
     humanoid.AutoRotate = true
     rootPart.Anchored = true
@@ -425,6 +426,7 @@ fling = function(args)
             v.RotVelocity = Vector3.new()
             v.CustomPhysicalProperties = PhysicalProperties.new(1, 0.3, 0.5)
             v.CanCollide = false
+            v.Massless = true -- Prevents you from being affected by physics
         end
     end
     task.wait(0.1)
@@ -466,12 +468,12 @@ fling = function(args)
     humanoid.PlatformStand = true
     rootPart.Anchored = false
 
-    -- Create velocity and angular velocity
-    local bodyVelocity = Instance.new("BodyVelocity")
-    bodyVelocity.Name = "ADONIS_FLIGHT_VELOCITY"
-    bodyVelocity.Parent = rootPart
-    bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    bodyVelocity.P = math.huge
+    -- Create smoother following mechanism
+    local bodyPosition = Instance.new("BodyPosition")
+    bodyPosition.Name = "ADONIS_FLIGHT_POSITIONER"
+    bodyPosition.Parent = rootPart
+    bodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    bodyPosition.P = 10000
 
     local bambam = Instance.new("BodyAngularVelocity")
     bambam.Name = "ADONIS_FLIGHT_POSITION"
@@ -514,13 +516,15 @@ fling = function(args)
         if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local targetRoot = targetPlayer.Character.HumanoidRootPart
             
-            -- CRITICAL FIX: Continuous position updating
-            local targetCFrame = targetRoot.CFrame
-            rootPart.CFrame = targetCFrame
+            -- Smooth following with increased speed
+            local targetPos = targetRoot.Position
+            local direction = (targetPos - rootPart.Position).Unit
+            local distance = (targetPos - rootPart.Position).Magnitude
+            local moveSpeed = math.min(FOLLOW_SPEED, distance * 5) -- Dynamic speed adjustment
             
-            -- Apply forces relative to target's movement
-            local targetVel = targetRoot.Velocity
-            bodyVelocity.Velocity = targetVel * 1.1 -- Slightly exceed target's velocity
+            bodyPosition.Position = rootPart.Position + (direction * moveSpeed * 0.016) -- 0.016 ≈ 1/60 (Heartbeat)
+            
+            -- Apply rotational forces
             rootPart.RotVelocity = Vector3.new(20000, 20000, 20000)
             
             -- Fling detection
