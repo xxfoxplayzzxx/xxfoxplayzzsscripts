@@ -396,10 +396,10 @@ end,
 fling = function(args)
     local targetName = args:match("%S+") or ""
     targetPlayer = nil
-    local flingThreshold = 150 -- Increased threshold for better detection
-    local MAX_FLING_TIME = 1.5
-    local FOLLOW_SPEED = 20
-    local REQUIRED_GROUND_TIME = 0.3 -- Target must be grounded for this long before fling
+    local flingThreshold = 100
+    local MAX_FLING_TIME = 2.0 -- Increased time for better fling
+    local FOLLOW_SPEED = 22 -- Optimal follow speed
+    local GROUND_CHECK_DISTANCE = 5 -- Distance to consider target grounded
 
     -- Clean up existing fling
     processCommand("unfling")
@@ -433,7 +433,7 @@ fling = function(args)
     task.wait(0.1)
 
     if targetName == "" then
-        -- Self-fling remains same
+        -- Self-fling
         rootPart.Anchored = false
         local bambam = Instance.new("BodyAngularVelocity")
         bambam.Name = "ADONIS_FLIGHT_POSITION"
@@ -446,62 +446,56 @@ fling = function(args)
         return "Spinning in place"
     end
 
-    -- Target player selection with fling state check
-    local function isValidTarget(p)
-        if not p.Character then return false end
-        local targetRoot = p.Character:FindFirstChild("HumanoidRootPart")
-        if not targetRoot then return false end
-        
-        -- Check if target is already flung
-        local velocity = targetRoot.Velocity.Magnitude
-        local rotVelocity = targetRoot.RotVelocity.Magnitude
-        return velocity < flingThreshold and rotVelocity < flingThreshold
+    -- Target player selection
+    local function getValidTargets()
+        local valid = {}
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                local targetRoot = p.Character.HumanoidRootPart
+                -- Simple ground check
+                local ray = Ray.new(targetRoot.Position, Vector3.new(0, -GROUND_CHECK_DISTANCE, 0))
+                local part = workspace:FindPartOnRay(ray, p.Character)
+                if part then
+                    table.insert(valid, p)
+                end
+            end
+        end
+        return valid
     end
 
     if targetName:lower() == "random" then
-        local validPlayers = {}
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= player and isValidTarget(p) then
-                table.insert(validPlayers, p)
-            end
-        end
-        
-        if #validPlayers > 0 then
-            targetPlayer = validPlayers[math.random(1,#validPlayers)]
+        local validTargets = getValidTargets()
+        if #validTargets > 0 then
+            targetPlayer = validTargets[math.random(1, #validTargets)]
         else
-            return "No valid targets found"
+            return "No grounded targets found"
         end
     else
         for _, p in pairs(Players:GetPlayers()) do
-            if string.find(string.lower(p.Name), string.lower(targetName)) and isValidTarget(p) then
-                targetPlayer = p
-                break
+            if string.find(string.lower(p.Name), string.lower(targetName)) then
+                if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    local ray = Ray.new(p.Character.HumanoidRootPart.Position, Vector3.new(0, -GROUND_CHECK_DISTANCE, 0))
+                    if workspace:FindPartOnRay(ray, p.Character) then
+                        targetPlayer = p
+                        break
+                    end
+                end
             end
         end
     end
 
-    if not targetPlayer then return "No valid target found" end
-
-    -- Additional ground check
-    local targetRoot = targetPlayer.Character.HumanoidRootPart
-    local groundCheckStart = tick()
-    while (tick() - groundCheckStart) < REQUIRED_GROUND_TIME do
-        if not isValidTarget(targetPlayer) then
-            return "Target started flying before fling could begin"
-        end
-        task.wait(0.1)
-    end
+    if not targetPlayer then return "Target not found or not grounded" end
 
     originalPosition = rootPart.CFrame
     humanoid.PlatformStand = true
     rootPart.Anchored = false
 
-    -- Create smoother following mechanism
-    local bodyPosition = Instance.new("BodyPosition")
-    bodyPosition.Name = "ADONIS_FLIGHT_POSITIONER"
-    bodyPosition.Parent = rootPart
-    bodyPosition.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    bodyPosition.P = 10000
+    -- Create fling mechanism
+    local bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.Name = "ADONIS_FLIGHT_VELOCITY"
+    bodyVelocity.Parent = rootPart
+    bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    bodyVelocity.P = 10000
 
     local bambam = Instance.new("BodyAngularVelocity")
     bambam.Name = "ADONIS_FLIGHT_POSITION"
@@ -510,22 +504,12 @@ fling = function(args)
     bambam.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
     bambam.P = math.huge
 
+    -- Initial position
+    local targetRoot = targetPlayer.Character.HumanoidRootPart
+    rootPart.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -1) -- Slight offset for better physics
+
     flinging = true
     local cycleStart = tick()
-    local targetFlingConfirmed = false
-
-    local function isTargetFlinging(targetRoot)
-        if not targetRoot then return false end
-        local velocity = targetRoot.Velocity.Magnitude
-        local rotVelocity = targetRoot.RotVelocity.Magnitude
-        
-        -- More sophisticated fling detection
-        local isFlying = velocity > flingThreshold
-        local isSpinning = rotVelocity > flingThreshold
-        local isMovingUp = targetRoot.Velocity.Y > 25
-        
-        return isFlying or (isSpinning and isMovingUp)
-    end
 
     -- Clean up old connection
     if flingLoop then
@@ -541,36 +525,26 @@ fling = function(args)
         
         -- Timeout check
         if tick() - cycleStart >= MAX_FLING_TIME then
-            if not targetFlingConfirmed then
-                processCommand("unfling")
-            end
+            processCommand("unfling")
             return
         end
         
         if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local targetRoot = targetPlayer.Character.HumanoidRootPart
             
-            -- Enhanced fling detection
-            if isTargetFlinging(targetRoot) then
-                if not targetFlingConfirmed then
-                    targetFlingConfirmed = true
-                    -- Maintain fling for a moment longer to ensure good launch
-                    task.delay(0.3, function()
-                        if flinging then processCommand("unfling") end
-                    end)
-                end
-                return -- Stop following if target is flung
-            end
+            -- Maintain position with slight offset
+            local targetPos = targetRoot.Position
+            local desiredPos = targetPos + (targetRoot.CFrame.LookVector * -1) -- Behind target
+            bodyVelocity.Velocity = (desiredPos - rootPart.Position) * 20
             
-            -- Only follow if target isn't already flung
-            if not targetFlingConfirmed then
-                local targetPos = targetRoot.Position
-                local direction = (targetPos - rootPart.Position).Unit
-                local distance = (targetPos - rootPart.Position).Magnitude
-                local moveSpeed = math.min(FOLLOW_SPEED, distance * 5)
-                
-                bodyPosition.Position = rootPart.Position + (direction * moveSpeed * 0.016)
-                rootPart.RotVelocity = Vector3.new(20000, 20000, 20000)
+            -- Strong rotational forces
+            rootPart.RotVelocity = Vector3.new(20000, 20000, 20000)
+            
+            -- Automatic unfling when target gets launched
+            if targetRoot.Velocity.Magnitude > flingThreshold then
+                task.delay(0.2, function()
+                    if flinging then processCommand("unfling") end
+                end)
             end
         else
             processCommand("unfling")
@@ -578,7 +552,7 @@ fling = function(args)
     end)
 
     return "Flinging "..targetPlayer.Name
-end,
+end
 unfling = function()
     flinging = false
 
