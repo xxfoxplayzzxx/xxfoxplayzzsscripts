@@ -168,62 +168,74 @@ StringUtils.matchScore = function(str, pattern)
 end
 
 local function updateAutocomplete()
-	local fullText = input.Text
-	underlay.Text = ""
-	colorizeCommand(fullText)
+    local fullText = input.Text
+    underlay.Text = ""
+    colorizeCommand(fullText)
 
-	-- Get the last segment
-	local lastSegment = fullText:match("([^,]*)$"):gsub("^%s*(.-)%s*$", "%1")
-	if lastSegment == "" then return end
+    -- Get the last segment
+    local lastSegment = fullText:match("([^,]*)$"):gsub("^%s*(.-)%s*$", "%1")
+    if lastSegment == "" then return end
 
-	-- Split into command and arguments
-	local cmd, args = lastSegment:match("^(%S+)%s*(.*)$")
-	cmd = cmd or ""
-	args = args or ""
+    -- Split into command and arguments
+    local cmd, args = lastSegment:match("^(%S+)%s*(.*)$")
+    cmd = cmd or ""
+    args = args or ""
 
-	-- Check for multi-command situation
-	local hasExistingCommas = fullText:sub(1, -#lastSegment - 1):find(",")
-	local prefix = hasExistingCommas and fullText:sub(1, -#lastSegment - 1) or ""
+    -- Check for multi-command situation
+    local hasExistingCommas = fullText:sub(1, -#lastSegment - 1):find(",")
+    local prefix = hasExistingCommas and fullText:sub(1, -#lastSegment - 1) or ""
 
-	-- Find best match for command (only if starting letters match)
-	local bestCmdMatch, bestCmdScore = nil, 0
-	for cmdName in pairs(validcmds) do
-		if cmdName:lower():sub(1, #cmd) == cmd:lower() then
-			bestCmdMatch = cmdName
-			bestCmdScore = 1.0
-			break
-		end
-	end
+    -- Find best match for command (only if starting letters match)
+    local bestCmdMatch, bestCmdScore = nil, 0
+    for cmdName in pairs(validcmds) do
+        if cmdName:lower():sub(1, #cmd) == cmd:lower() then
+            bestCmdMatch = cmdName
+            bestCmdScore = 1.0
+            break
+        end
+    end
 
-	local bestPlayerMatch, bestPlayerScore = nil, 0
-	if args ~= "" then
-		if args:lower() == "rand" or args:lower() == "rando" or args:lower() == "random" then
-			bestPlayerMatch = "random"
-			bestPlayerScore = 1.0
-		else
-			for _, player in pairs(Players:GetPlayers()) do
-				if player.Name:lower():sub(1, #args) == args:lower() then
-					bestPlayerMatch = player.Name
-					bestPlayerScore = 1.0
-					break
-				end
-			end
-		end
-	end
+    local bestPlayerMatch, bestPlayerScore = nil, 0
+    if args ~= "" then
+        if args:lower() == "rand" or args:lower() == "rando" or args:lower() == "random" then
+            bestPlayerMatch = "random"
+            bestPlayerScore = 1.0
+        else
+            -- FIRST check for names that START WITH the search string
+            for _, player in pairs(Players:GetPlayers()) do
+                if player.Name:lower():sub(1, #args) == args:lower() then
+                    bestPlayerMatch = player.Name
+                    bestPlayerScore = 1.0
+                    break
+                end
+            end
+            
+            -- If no exact start match found, then look for CONTAINS matches
+            if not bestPlayerMatch then
+                for _, player in pairs(Players:GetPlayers()) do
+                    if player.Name:lower():find(args:lower(), 1, true) then
+                        bestPlayerMatch = player.Name
+                        bestPlayerScore = 0.9  -- Lower score than start matches
+                        break
+                    end
+                end
+            end
+        end
+    end
 
-	if args == "" and bestCmdMatch and bestCmdMatch:lower() == cmd:lower() then
-		underlay.Text = ""
-	elseif args == "" and bestCmdMatch and bestCmdScore > 0.5 then
-		underlay.Text = prefix .. bestCmdMatch
-		underlay.TextTransparency = 0.5
+    if args == "" and bestCmdMatch and bestCmdMatch:lower() == cmd:lower() then
+        underlay.Text = ""
+    elseif args == "" and bestCmdMatch and bestCmdScore > 0.5 then
+        underlay.Text = prefix .. bestCmdMatch
+        underlay.TextTransparency = 0.5
 
-		if bestCmdMatch:lower():sub(1, #cmd) == cmd:lower() then
-			underlay.Text = underlay.Text .. " "
-		end
-	elseif args ~= "" and bestPlayerMatch and bestPlayerScore > 0.5 then
-		underlay.Text = prefix .. (bestCmdMatch or cmd) .. " " .. bestPlayerMatch
-		underlay.TextTransparency = 0.5
-	end
+        if bestCmdMatch:lower():sub(1, #cmd) == cmd:lower() then
+            underlay.Text = underlay.Text .. " "
+        end
+    elseif args ~= "" and bestPlayerMatch and bestPlayerScore > 0.5 then
+        underlay.Text = prefix .. (bestCmdMatch or cmd) .. " " .. bestPlayerMatch
+        underlay.TextTransparency = 0.5
+    end
 end
 
 local function processCommand(fullInput)
