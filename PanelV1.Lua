@@ -463,24 +463,22 @@ fling = function(args)
     flinging = true
     local cycleStart = tick()
 
-    flingLoop = RunService.Heartbeat:Connect(function()
-        if not flinging then return end
-
-        if tick() - cycleStart >= 1.5 then
-            processCommand("unfling")
-            return
-        end
-
-        if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            -- Use CFrame lerping for smoother movement
-            rootPart.CFrame = rootPart.CFrame:Lerp(
-                targetPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 2),
-                0.5
-            )
-        else
-            processCommand("unfling")
-        end
-    end)
+flingLoop = RunService.Heartbeat:Connect(function()
+    if not flinging then return end
+    
+    if tick() - cycleStart >= 1.5 then
+        processCommand("unfling")
+        return
+    end
+    
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        rootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+        rootPart.Velocity = Vector3.new(0,10000,0)
+        rootPart.RotVelocity = Vector3.new(20000,20000,20000)
+    else
+        processCommand("unfling")
+    end
+end)
 
     return "Flinging "..targetPlayer.Name
 end,
