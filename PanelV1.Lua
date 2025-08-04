@@ -28,6 +28,9 @@ local flinging = false
 local flingLoop = nil
 local originalPosition = nil
 local flingConnection = nil
+local originalCollision = {}
+local espscript = nil
+
 
 -- Sounds
 local SF = gui:WaitForChild("SFX"):WaitForChild("Default")
@@ -44,7 +47,7 @@ local validcmds = {
 	saveinstance = true,
 	goto = true,
 	infyield = true,
-	tracers = true,
+	esp = true,
 	sit = true,
 	unsit = true,
 	reset = true,
@@ -256,25 +259,36 @@ local function processCommand(fullInput)
 			if NoclippingConnection then
 				NoclippingConnection:Disconnect()
 			end
+			originalCollision = {}
 			NoclippingConnection = RunService.Stepped:Connect(function()
 				local character = player.Character
 				if not character then return end
 				for _, part in ipairs(character:GetDescendants()) do
 					if part:IsA("BasePart") then
+						-- Save original state once
+						if originalCollision[part] == nil then
+							originalCollision[part] = part.CanCollide
+						end
 						part.CanCollide = false
 					end
 				end
 			end)
-
-			return
 		end,
 		clip = function()
-			clip = true
+			Clip = true
 			if NoclippingConnection then
 				NoclippingConnection:Disconnect()
 				NoclippingConnection = nil
 			end
-			return
+			local character = player.Character
+			if character then
+				for _, part in ipairs(character:GetDescendants()) do
+					if part:IsA("BasePart") and originalCollision[part] ~= nil then
+						part.CanCollide = originalCollision[part]
+					end
+				end
+			end
+			originalCollision = {}
 		end,
 		fly = function()
 			loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/refs/heads/main/Flight.Lua"))()
@@ -376,8 +390,12 @@ local function processCommand(fullInput)
 
 			return
 		end,
-		tracers = function()
-			loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/main/TracerModule.Lua"))()
+		esp = function()
+			local espscript = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/main/TracerModule.Lua"))()
+			return
+		end,
+		noesp = function()
+			espscript:Destroy()
 			return
 		end,
 		sit = function()
@@ -623,7 +641,6 @@ local function processCommand(fullInput)
 		if cmdName ~= "" then
 			cmdName = cmdName:lower()
 
-			-- Check for aliases before checking valid commands
 			if aliases[cmdName] then
 				cmdName = aliases[cmdName]
 			end
@@ -651,6 +668,9 @@ end
 -- Input handling
 input:GetPropertyChangedSignal("Text"):Connect(function()
 	updateAutocomplete()
+	if active and #input.Text > 0 and UIS:GetFocusedTextBox() == input then
+		Type:Play()
+	end
 end)
 
 input.FocusLost:Connect(function(enterPressed)
@@ -669,6 +689,15 @@ UIS.InputBegan:Connect(function(inputObj, gpe)
 			input.Text = ""
 			input:CaptureFocus()
 		end
+	end
+end)
+
+input:GetPropertyChangedSignal("CursorPosition"):Connect(function()
+	if active and UIS:GetFocusedTextBox() == input 
+		and input.Text ~= "" 
+		and not UIS:IsKeyDown(Enum.KeyCode.Backspace) 
+		and not UIS:IsKeyDown(Enum.KeyCode.Delete) then
+		Type:Play()
 	end
 end)
 
