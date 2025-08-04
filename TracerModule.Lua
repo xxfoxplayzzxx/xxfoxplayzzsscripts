@@ -93,8 +93,9 @@ local function CreateESP(player)
         tracer = CustomTracer:Clone()
         tracer.Name = "Tracer_"..player.Name
         tracer.Color = ColorSequence.new(ESPConfig.NeutralColor)
-        tracer.Visible = false
         tracer.Parent = workspace.CurrentCamera
+        -- For beams, we control visibility by parenting
+        tracer.Parent = ESPConfig.Enabled and workspace.CurrentCamera or nil
     end
     
     ESPObjects[player] = {
@@ -115,7 +116,7 @@ local function UpdateESP(player)
     local character = player.Character
     if not character then
         esp.GUI.Enabled = false
-        if esp.Tracer then esp.Tracer.Visible = false end
+        if esp.Tracer then esp.Tracer.Parent = nil end
         return
     end
     
@@ -123,7 +124,7 @@ local function UpdateESP(player)
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     if not humanoid or not rootPart then
         esp.GUI.Enabled = false
-        if esp.Tracer then esp.Tracer.Visible = false end
+        if esp.Tracer then esp.Tracer.Parent = nil end
         return
     end
     
@@ -131,7 +132,7 @@ local function UpdateESP(player)
     local distance = (rootPart.Position - Camera.CFrame.Position).Magnitude
     if distance > ESPConfig.MaxDistance then
         esp.GUI.Enabled = false
-        if esp.Tracer then esp.Tracer.Visible = false end
+        if esp.Tracer then esp.Tracer.Parent = nil end
         return
     end
     
@@ -186,7 +187,6 @@ local function UpdateESP(player)
     -- Update custom tracer if enabled
     if esp.Tracer then
         esp.Tracer.Color = ColorSequence.new(color)
-        esp.Tracer.Visible = false -- Default to hidden
         
         if ESPConfig.Tracers and ESPConfig.Enabled and LocalPlayer.Character then
             local myRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -202,8 +202,12 @@ local function UpdateESP(player)
                 
                 esp.Tracer.Attachment0 = myAttachment
                 esp.Tracer.Attachment1 = theirAttachment
-                esp.Tracer.Visible = true
+                esp.Tracer.Parent = workspace.CurrentCamera
+            else
+                esp.Tracer.Parent = nil
             end
+        else
+            esp.Tracer.Parent = nil
         end
     end
 end
@@ -241,7 +245,7 @@ local function ToggleESP()
         -- Disable all ESP objects
         for _, esp in pairs(ESPObjects) do
             if esp.GUI then esp.GUI.Enabled = false end
-            if esp.Tracer then esp.Tracer.Visible = false end
+            if esp.Tracer then esp.Tracer.Parent = nil end
         end
     end
 end
