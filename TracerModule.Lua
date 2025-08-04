@@ -4,6 +4,16 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Import ESP assets from model
+local ESPAssets = game:GetObjects("rbxassetid://118067082961835")[1]
+local CustomESPGui = ESPAssets:FindFirstChild("ESPGui")
+local CustomTracer = ESPAssets:FindFirstChild("Tracer")
+
+if not CustomESPGui or not CustomTracer then
+    warn("Failed to find required ESP components in the model")
+end
 
 -- Configuration
 local ESPConfig = {
@@ -36,29 +46,32 @@ local ESPLoopConnection = nil
 local function CreateESP(player)
     if ESPObjects[player] then return end -- Prevent duplicates
     
-    local gui = Instance.new("BillboardGui")
+    -- Clone the custom GUI
+    local gui = CustomESPGui:Clone()
     gui.Name = "ESP_"..player.Name
-    gui.Size = UDim2.new(4, 0, 6, 0)
-    gui.AlwaysOnTop = true
+    gui.ResetOnSpawn = false
     gui.Enabled = false
     gui.Adornee = nil
-    gui.Parent = game:GetService("CoreGui")
+    gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
     
+    -- Find or create components
+    local header = gui:FindFirstChild("Header") or Instance.new("TextLabel")
+    header.Name = "Header"
+    header.Size = UDim2.new(1, 0, 0.2, 0)
+    header.Position = UDim2.new(0, 0, 0, -20)
+    header.BackgroundTransparency = 1
+    header.TextScaled = true
+    header.Font = Enum.Font.SourceSansBold
+    header.Visible = ESPConfig.Names
+    header.Parent = gui
+    
+    -- Add additional ESP components to the custom GUI
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 1, 0)
     frame.BackgroundTransparency = 0.7
     frame.BorderSizePixel = 1
     frame.Visible = ESPConfig.Boxes
     frame.Parent = gui
-    
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, 0, 0.2, 0)
-    nameLabel.Position = UDim2.new(0, 0, 0, -20)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.TextScaled = true
-    nameLabel.Font = Enum.Font.SourceSansBold
-    nameLabel.Visible = ESPConfig.Names
-    nameLabel.Parent = gui
     
     local healthBar = Instance.new("Frame")
     healthBar.Size = UDim2.new(0.8, 0, 0.05, 0)
@@ -74,22 +87,20 @@ local function CreateESP(player)
     healthFill.BorderSizePixel = 0
     healthFill.Parent = healthBar
     
+    -- Clone the custom tracer
     local tracer
     if ESPConfig.Tracers then
-        tracer = Instance.new("Frame")
-        tracer.AnchorPoint = Vector2.new(0.5, 0.5)
-        tracer.Size = UDim2.new(0, 200, 0, 2) -- Length will be adjusted in update
-        tracer.BackgroundColor3 = Color3.new(1, 1, 1) -- Default color, will be updated
-        tracer.BorderSizePixel = 0
-        tracer.ZIndex = 10
+        tracer = CustomTracer:Clone()
+        tracer.Name = "Tracer_"..player.Name
+        tracer.Color = ColorSequence.new(ESPConfig.NeutralColor)
         tracer.Visible = false
-        tracer.Parent = gui
+        tracer.Parent = workspace.CurrentCamera
     end
     
     ESPObjects[player] = {
         GUI = gui,
         Frame = frame,
-        NameLabel = nameLabel,
+        Header = header,
         HealthBar = healthBar,
         HealthFill = healthFill,
         Tracer = tracer
@@ -104,6 +115,7 @@ local function UpdateESP(player)
     local character = player.Character
     if not character then
         esp.GUI.Enabled = false
+        if esp.Tracer then esp.Tracer.Visible = false end
         return
     end
     
@@ -111,6 +123,7 @@ local function UpdateESP(player)
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     if not humanoid or not rootPart then
         esp.GUI.Enabled = false
+        if esp.Tracer then esp.Tracer.Visible = false end
         return
     end
     
@@ -118,6 +131,7 @@ local function UpdateESP(player)
     local distance = (rootPart.Position - Camera.CFrame.Position).Magnitude
     if distance > ESPConfig.MaxDistance then
         esp.GUI.Enabled = false
+        if esp.Tracer then esp.Tracer.Visible = false end
         return
     end
     
@@ -143,11 +157,11 @@ local function UpdateESP(player)
     end
     
     if ESPConfig.Names then
-        esp.NameLabel.Text = player.DisplayName ~= "" and player.DisplayName or player.Name
-        esp.NameLabel.TextColor3 = color
-        esp.NameLabel.Visible = true
+        esp.Header.Text = player.DisplayName ~= "" and player.DisplayName or player.Name
+        esp.Header.TextColor3 = color
+        esp.Header.Visible = true
     else
-        esp.NameLabel.Visible = false
+        esp.Header.Visible = false
     end
     
     if ESPConfig.HealthBars and humanoid then
@@ -164,42 +178,31 @@ local function UpdateESP(player)
     end
     
     if ESPConfig.Distance then
-        esp.NameLabel.Text = string.format("%s [%dm]", 
-            esp.NameLabel.Text, 
+        esp.Header.Text = string.format("%s [%dm]", 
+            esp.Header.Text, 
             math.floor(distance))
     end
     
-    -- Update tracer if enabled
+    -- Update custom tracer if enabled
     if esp.Tracer then
-        esp.Tracer.BackgroundColor3 = color
+        esp.Tracer.Color = ColorSequence.new(color)
         esp.Tracer.Visible = false -- Default to hidden
         
         if ESPConfig.Tracers and ESPConfig.Enabled and LocalPlayer.Character then
             local myRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             if myRoot then
-                local startPos = Camera:WorldToViewportPoint(myRoot.Position)
-                local endPos = Camera:WorldToViewportPoint(rootPart.Position)
+                -- Set tracer attachments
+                local myAttachment = myRoot:FindFirstChild("RootAttachment") or Instance.new("Attachment")
+                myAttachment.Name = "RootAttachment"
+                myAttachment.Parent = myRoot
                 
-                -- Only draw if both points are on screen
-                if startPos.Z > 0 and endPos.Z > 0 then
-                    local midpoint = Vector2.new(
-                        (startPos.X + endPos.X)/2,
-                        (startPos.Y + endPos.Y)/2
-                    )
-                    local length = math.sqrt(
-                        (endPos.X - startPos.X)^2 + 
-                        (endPos.Y - startPos.Y)^2
-                    )
-                    local angle = math.deg(math.atan2(
-                        endPos.Y - startPos.Y, 
-                        endPos.X - startPos.X
-                    ))
-                    
-                    esp.Tracer.Position = UDim2.new(0, midpoint.X, 0, midpoint.Y)
-                    esp.Tracer.Size = UDim2.new(0, length, 0, 2)
-                    esp.Tracer.Rotation = angle
-                    esp.Tracer.Visible = true
-                end
+                local theirAttachment = rootPart:FindFirstChild("RootAttachment") or Instance.new("Attachment")
+                theirAttachment.Name = "RootAttachment"
+                theirAttachment.Parent = rootPart
+                
+                esp.Tracer.Attachment0 = myAttachment
+                esp.Tracer.Attachment1 = theirAttachment
+                esp.Tracer.Visible = true
             end
         end
     end
@@ -226,7 +229,8 @@ local function ToggleESP()
                     else
                         -- Clean up if player left
                         if ESPObjects[player] then
-                            ESPObjects[player].GUI:Destroy()
+                            if ESPObjects[player].GUI then ESPObjects[player].GUI:Destroy() end
+                            if ESPObjects[player].Tracer then ESPObjects[player].Tracer:Destroy() end
                             ESPObjects[player] = nil
                         end
                     end
@@ -236,10 +240,8 @@ local function ToggleESP()
     else
         -- Disable all ESP objects
         for _, esp in pairs(ESPObjects) do
-            esp.GUI.Enabled = false
-            if esp.Tracer then
-                esp.Tracer.Visible = false
-            end
+            if esp.GUI then esp.GUI.Enabled = false end
+            if esp.Tracer then esp.Tracer.Visible = false end
         end
     end
 end
@@ -263,7 +265,8 @@ end
 
 local function PlayerRemoving(player)
     if ESPObjects[player] then
-        ESPObjects[player].GUI:Destroy()
+        if ESPObjects[player].GUI then ESPObjects[player].GUI:Destroy() end
+        if ESPObjects[player].Tracer then ESPObjects[player].Tracer:Destroy() end
         ESPObjects[player] = nil
     end
 end
