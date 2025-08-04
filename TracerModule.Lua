@@ -26,12 +26,13 @@ local ESPConfig = {
     OutlineTransparency = 0.2,
 
     TracerTexture = "http://www.roblox.com/asset/?id=4955566540",
-    TracerWidth = 0.5,  -- Changed to 0.5 as requested
+    TracerWidth = 0.5,
 
     ToggleKey = Enum.KeyCode.N,
 
     UpdateRate = 0.3,
-    MaxDistance = 1000
+    MaxDistance = 1000,
+    HighlightRetryDelay = 0.5 -- Delay before retrying highlight attachment
 }
 
 -- ESP Storage
@@ -55,7 +56,7 @@ local function UpdateESP(player)
     local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("UpperTorso")
     if not rootPart then return end
 
-    -- Check distance (still used for rendering, just not displayed)
+    -- Check distance
     local distance = (rootPart.Position - Camera.CFrame.Position).Magnitude
     if distance > ESPConfig.MaxDistance then
         if esp.Highlight then esp.Highlight.Parent = nil end
@@ -64,17 +65,31 @@ local function UpdateESP(player)
         return
     end
 
-    -- Determine color based on team (using actual team colors)
+    -- Determine color based on team
     local color
     if ESPConfig.TeamCheck and player.Team then
-        color = player.TeamColor.Color  -- Use the actual team color
+        color = player.TeamColor.Color
     else
-        color = ESPConfig.NeutralColor  -- Fallback to yellow
+        color = ESPConfig.NeutralColor
     end
 
-    -- Update highlight with team color
+    -- Enhanced highlight system with retry logic
     if esp.Highlight then
-        esp.Highlight.Parent = character
+        -- Check if highlight is properly attached
+        if esp.Highlight.Parent ~= character then
+            esp.Highlight.Parent = character
+        end
+        
+        -- Verify highlight is working, if not recreate it
+        if not esp.Highlight.Adornee or esp.Highlight.Adornee.Parent ~= character then
+            esp.Highlight:Destroy()
+            esp.Highlight = Instance.new("Highlight")
+            esp.Highlight.Name = player.Name.."_Highlight"
+            esp.Highlight.FillTransparency = ESPConfig.HighlightTransparency
+            esp.Highlight.OutlineTransparency = ESPConfig.OutlineTransparency
+            esp.Highlight.Parent = character
+        end
+        
         esp.Highlight.FillColor = color
         esp.Highlight.OutlineColor = color
         esp.Highlight.Enabled = ESPConfig.Enabled and ESPConfig.Highlights
@@ -82,7 +97,7 @@ local function UpdateESP(player)
 
     -- Update tracer with team color
     if esp.Tracer then
-        esp.Tracer.Color = ColorSequence.new(color)  -- Set to team color
+        esp.Tracer.Color = ColorSequence.new(color)
         esp.Tracer.Parent = ESPConfig.Enabled and ESPConfig.Tracers and workspace.CurrentCamera or nil
 
         if ESPConfig.Enabled and ESPConfig.Tracers and LocalPlayer.Character then
@@ -102,7 +117,7 @@ local function UpdateESP(player)
         end
     end
 
-    -- Update billboard text (removed distance display)
+    -- Update billboard text
     if esp.Billboard and esp.TextLabel then
         -- Make sure it's parented to head
         local head = character:FindFirstChild("Head")
@@ -114,7 +129,7 @@ local function UpdateESP(player)
         local humanoid = character:FindFirstChildOfClass("Humanoid")
         local healthText = humanoid and string.format("Health: %d/%d", humanoid.Health, humanoid.MaxHealth) or "Health: N/A"
 
-        esp.TextLabel.Text = string.format("%s\n%s",  -- Removed distance from this line
+        esp.TextLabel.Text = string.format("%s\n%s", 
             player.DisplayName ~= "" and player.DisplayName or player.Name,
             healthText
         )
@@ -132,31 +147,44 @@ local function CreateESP(player)
         Highlight = nil,
         Tracer = nil,
         Billboard = nil,
-        Connections = {}
+        Connections = {},
+        RetryHighlight = false
     }
     ESPObjects[player] = esp
 
     -- Function to setup character ESP
     local function setupCharacterESP(character)
-        -- Create highlight
+        -- Create highlight with retry system
         if ESPConfig.Highlights then
-            esp.Highlight = Instance.new("Highlight")
-            esp.Highlight.Name = player.Name.."_Highlight"
-            esp.Highlight.FillTransparency = ESPConfig.HighlightTransparency
-            esp.Highlight.OutlineTransparency = ESPConfig.OutlineTransparency
-            esp.Highlight.Parent = character
+            local function createHighlight()
+                esp.Highlight = Instance.new("Highlight")
+                esp.Highlight.Name = player.Name.."_Highlight"
+                esp.Highlight.FillTransparency = ESPConfig.HighlightTransparency
+                esp.Highlight.OutlineTransparency = ESPConfig.OutlineTransparency
+                esp.Highlight.Parent = character
+                
+                -- Check if highlight attached properly
+                task.delay(ESPConfig.HighlightRetryDelay, function()
+                    if esp.Highlight and (not esp.Highlight.Adornee or esp.Highlight.Adornee.Parent ~= character) then
+                        esp.RetryHighlight = true
+                        esp.Highlight:Destroy()
+                        createHighlight()
+                    else
+                        esp.RetryHighlight = false
+                    end
+                end)
+            end
+            
+            createHighlight()
         end
 
         -- Create tracer with custom settings
         if ESPConfig.Tracers and CustomTracer then
             esp.Tracer = CustomTracer:Clone()
             esp.Tracer.Name = player.Name.."_Tracer"
-
-            -- Apply custom texture and width (0.5 as requested)
             esp.Tracer.Texture = ESPConfig.TracerTexture
             esp.Tracer.Width0 = ESPConfig.TracerWidth
             esp.Tracer.Width1 = ESPConfig.TracerWidth
-
             esp.Tracer.Parent = workspace.CurrentCamera
         end
 
