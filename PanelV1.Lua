@@ -247,11 +247,16 @@ local function processCommand(fullInput)
 	overlay.Text = ""
 	local commandHandlers = {}
 	local commandHandlers = {
-		reload = function()
-			gui:Destroy()
-			loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/refs/heads/main/PanelV1.Lua"))()
-			script:Destroy()
-			return
+		reload=function()
+			Exec:Play()
+			if gui and gui.Parent then gui:Destroy() end
+			if NoclippingConnection then NoclippingConnection:Disconnect() NoclippingConnection=nil end
+			if flingLoop then flingLoop:Disconnect() flingLoop=nil end
+			task.wait(0.1)
+			local s,e=pcall(function()loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/main/PanelV1.Lua"))()end)
+			if not s then warn("Reload failed: "..tostring(e)) Error:Play() return "Reload failed!" end
+			if script and script:IsA("LuaSourceContainer") then script:Destroy() end
+			return "Panel reloaded"
 		end,
 		noclip = function()
 			Clip = false
