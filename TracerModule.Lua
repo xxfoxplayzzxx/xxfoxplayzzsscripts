@@ -16,7 +16,7 @@ local ESPConfig = {
     Tracers = true,
     Highlights = true,
     Names = true,
-    HealthBars = true,
+    HealthBars = false,
     Distance = false,
 
     -- Colors
@@ -38,6 +38,25 @@ local ESPConfig = {
 -- ESP Storage
 local ESPObjects = {}
 local ESPLoopConnection = nil
+
+-- Function to clean up a player's ESP
+local function CleanupPlayerESP(player)
+    if not ESPObjects[player] then return end
+    
+    local esp = ESPObjects[player]
+    
+    -- Disconnect all connections
+    for _, connection in pairs(esp.Connections) do
+        connection:Disconnect()
+    end
+    
+    -- Destroy all instances
+    if esp.Highlight then esp.Highlight:Destroy() end
+    if esp.Tracer then esp.Tracer:Destroy() end
+    if esp.Billboard then esp.Billboard:Destroy() end
+    
+    ESPObjects[player] = nil
+end
 
 local function UpdateESP(player)
     if not ESPObjects[player] then return end
@@ -127,7 +146,7 @@ end
 -- Create ESP components for a player
 local function CreateESP(player)
     if player == LocalPlayer then return end
-    if ESPObjects[player] then return end
+    if ESPObjects[player] then CleanupPlayerESP(player) end
 
     local esp = {
         Highlight = nil,
@@ -139,6 +158,11 @@ local function CreateESP(player)
 
     -- Function to setup character ESP
     local function setupCharacterESP(character)
+        -- Clean up any existing ESP first
+        if esp.Highlight then esp.Highlight:Destroy() end
+        if esp.Tracer then esp.Tracer:Destroy() end
+        if esp.Billboard then esp.Billboard:Destroy() end
+
         -- Create highlight
         if ESPConfig.Highlights then
             esp.Highlight = Instance.new("Highlight")
@@ -180,10 +204,21 @@ local function CreateESP(player)
             esp.TextLabel = TextLabel
 
             -- Parent to head if exists
-            local head = character:WaitForChild("Head", 2)
+            local head = character:FindFirstChild("Head")
             if head then
                 esp.Billboard.Adornee = head
                 esp.Billboard.Parent = head
+            else
+                -- If head doesn't exist yet, wait for it
+                local headConnection
+                headConnection = character.ChildAdded:Connect(function(child)
+                    if child.Name == "Head" then
+                        esp.Billboard.Adornee = child
+                        esp.Billboard.Parent = child
+                        headConnection:Disconnect()
+                    end
+                end)
+                table.insert(esp.Connections, headConnection)
             end
         end
 
@@ -198,90 +233,84 @@ local function CreateESP(player)
 
     -- Connect character added event
     esp.Connections.characterAdded = player.CharacterAdded:Connect(function(character)
-        if ESPConfig.Enabled then
-            -- Clean up old ESP
-            if esp.Highlight then esp.Highlight:Destroy() end
-            if esp.Tracer then esp.Tracer:Destroy() end
-            if esp.Billboard then esp.Billboard:Destroy() end
-
-            -- Setup new character
-            setupCharacterESP(character)
+        setupCharacterESP(character)
+    end)
+    
+    -- Connect to humanoid health changes
+    if player.Character then
+        local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            esp.Connections.healthChanged = humanoid.HealthChanged:Connect(function()
+                UpdateESP(player)
+            end)
         end
+    end
+    
+    -- Connect to team changes
+    esp.Connections.teamChanged = player:GetPropertyChangedSignal("Team"):Connect(function()
+        UpdateESP(player)
     end)
 end
 
 -- Toggle ESP system
 local function ToggleESP()
-	ESPConfig.Enabled = not ESPConfig.Enabled
+    ESPConfig.Enabled = not ESPConfig.Enabled
 
-	if ESPConfig.Enabled then
-		-- Create ESP for all players
-		for _, player in ipairs(Players:GetPlayers()) do
-			if player ~= LocalPlayer then
-				CreateESP(player)
-			end
-		end
+    if ESPConfig.Enabled then
+        -- Create ESP for all players
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                CreateESP(player)
+            end
+        end
 
-		-- Start update loop
-		if not ESPLoopConnection then
-			ESPLoopConnection = RunService.Heartbeat:Connect(function()
-				for player, _ in pairs(ESPObjects) do
-					if player and player.Parent then
-						UpdateESP(player)
-					else
-						-- Clean up if player left
-						if ESPObjects[player] then
-							if ESPObjects[player].Highlight then ESPObjects[player].Highlight:Destroy() end
-							if ESPObjects[player].Tracer then ESPObjects[player].Tracer:Destroy() end
-							if ESPObjects[player].Billboard then ESPObjects[player].Billboard:Destroy() end
-							ESPObjects[player] = nil
-						end
-					end
-				end
-			end)
-		end
-	else
-		-- Disable all ESP objects
-		for _, esp in pairs(ESPObjects) do
-			if esp.Highlight then esp.Highlight.Enabled = false end
-			if esp.Tracer then esp.Tracer.Parent = nil end
-			if esp.Billboard then esp.Billboard.Enabled = false end
-		end
-	end
+        -- Start update loop
+        if not ESPLoopConnection then
+            ESPLoopConnection = RunService.Heartbeat:Connect(function()
+                for player, _ in pairs(ESPObjects) do
+                    if player and player.Parent then
+                        UpdateESP(player)
+                    else
+                        -- Clean up if player left
+                        CleanupPlayerESP(player)
+                    end
+                end
+            end)
+        end
+    else
+        -- Disable all ESP objects
+        for _, esp in pairs(ESPObjects) do
+            if esp.Highlight then esp.Highlight.Enabled = false end
+            if esp.Tracer then esp.Tracer.Parent = nil end
+            if esp.Billboard then esp.Billboard.Enabled = false end
+        end
+    end
 end
 
 -- Initialize
 local function Init()
-	-- Set up player handlers
-	Players.PlayerAdded:Connect(function(player)
-		CreateESP(player)
-		if ESPConfig.Enabled then
-			UpdateESP(player)
-		end
-	end)
+    -- Set up player handlers
+    Players.PlayerAdded:Connect(function(player)
+        CreateESP(player)
+    end)
 
-	Players.PlayerRemoving:Connect(function(player)
-		if ESPObjects[player] then
-			if ESPObjects[player].Highlight then ESPObjects[player].Highlight:Destroy() end
-			if ESPObjects[player].Tracer then ESPObjects[player].Tracer:Destroy() end
-			if ESPObjects[player].Billboard then ESPObjects[player].Billboard:Destroy() end
-			ESPObjects[player] = nil
-		end
-	end)
+    Players.PlayerRemoving:Connect(function(player)
+        CleanupPlayerESP(player)
+    end)
 
-	-- Create ESP for existing players
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer then
-			CreateESP(player)
-		end
-	end
+    -- Create ESP for existing players
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            CreateESP(player)
+        end
+    end
 
-	-- Set up keybind
-	UserInputService.InputBegan:Connect(function(input, gameProcessed)
-		if not gameProcessed and input.KeyCode == ESPConfig.ToggleKey then
-			ToggleESP()
-		end
-	end)
+    -- Set up keybind
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.KeyCode == ESPConfig.ToggleKey then
+            ToggleESP()
+        end
+    end)
 end
 
 Init()
