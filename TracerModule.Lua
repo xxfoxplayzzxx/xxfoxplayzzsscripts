@@ -30,7 +30,7 @@ local ESPConfig = {
 
     ToggleKey = Enum.KeyCode.N,
 
-    UpdateRate = 0.3,
+    UpdateRate = 0.1,
     MaxDistance = 1000,
     HighlightRetryDelay = 0.5 -- Delay before retrying highlight attachment
 }
