@@ -11,29 +11,27 @@ local CustomTracer = ESPAssets:FindFirstChild("Tracer")
 
 -- Configuration
 local ESPConfig = {
-	Enabled = false,
-	TeamCheck = true,  -- Will use team colors when true
-	Tracers = true,
-	Highlights = true,  -- Using highlights instead of boxes
-	Names = true,
-	HealthBars = true,
-	Distance = true,
-
-	-- Colors
-	EnemyColor = Color3.fromRGB(255, 60, 60),
-	FriendlyColor = Color3.fromRGB(60, 255, 60),
-	NeutralColor = Color3.fromRGB(255, 255, 60),
-
-	-- Highlight settings
-	HighlightTransparency = 0.6,
-	OutlineTransparency = 0,
-
-	-- Keybind
-	ToggleKey = Enum.KeyCode.F1,
-
-	-- Performance
-	UpdateRate = 0.1,
-	MaxDistance = 1000
+    Enabled = false,
+    TeamCheck = true,  -- Use actual team colors
+    Tracers = true,
+    Highlights = true,
+    Names = true,
+    HealthBars = true,
+    Distance = true,
+    
+    -- Colors
+    NeutralColor = Color3.fromRGB(255, 255, 60), -- Yellow for no team
+    
+    -- Highlight settings
+    HighlightTransparency = 0.6,
+    OutlineTransparency = 0.2,  -- Slightly visible outline
+    
+    -- Keybind
+    ToggleKey = Enum.KeyCode.F1,
+    
+    -- Performance
+    UpdateRate = 0.1,
+    MaxDistance = 1000
 }
 
 -- ESP Storage
@@ -42,216 +40,243 @@ local ESPLoopConnection = nil
 
 -- Create ESP components for a player
 local function CreateESP(player)
-	if player == LocalPlayer then return end
-	if ESPObjects[player] then return end
-
-	local esp = {
-		Highlight = nil,
-		Tracer = nil,
-		Billboard = nil,
-		Connections = {}
-	}
-	ESPObjects[player] = esp
-
-	-- Create highlight if enabled
-	if ESPConfig.Highlights then
-		esp.Highlight = Instance.new("Highlight")
-		esp.Highlight.Name = player.Name.."_Highlight"
-		esp.Highlight.FillTransparency = ESPConfig.HighlightTransparency
-		esp.Highlight.OutlineTransparency = ESPConfig.OutlineTransparency
-		esp.Highlight.Parent = player.Character or nil
-	end
-
-	-- Create tracer if enabled
-	if ESPConfig.Tracers and CustomTracer then
-		esp.Tracer = CustomTracer:Clone()
-		esp.Tracer.Name = player.Name.."_Tracer"
-		esp.Tracer.Parent = workspace.CurrentCamera
-	end
-
-	-- Create billboard for name/health/distance
-	if ESPConfig.Names then
-		esp.Billboard = Instance.new("BillboardGui")
-		esp.Billboard.Name = player.Name.."_Billboard"
-		esp.Billboard.Size = UDim2.new(0, 200, 0, 50)
-		esp.Billboard.StudsOffset = Vector3.new(0, 2, 0)
-		esp.Billboard.AlwaysOnTop = true
-		esp.Billboard.Parent = player.Character and player.Character:FindFirstChild("Head") or nil
-
-		local TextLabel = Instance.new("TextLabel")
-		TextLabel.Size = UDim2.new(1, 0, 1, 0)
-		TextLabel.BackgroundTransparency = 1
-		TextLabel.TextScaled = true
-		TextLabel.Font = Enum.Font.SourceSansBold
-		TextLabel.TextStrokeTransparency = 0
-		TextLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-		TextLabel.Parent = esp.Billboard
-		esp.TextLabel = TextLabel
-	end
-
-	-- Set up character added event
-	esp.Connections.characterAdded = player.CharacterAdded:Connect(function(character)
-		if ESPConfig.Enabled then
-			CreateESP(player) -- Recreate ESP for new character
-		end
-	end)
+    if player == LocalPlayer then return end
+    if ESPObjects[player] then return end
+    
+    local esp = {
+        Highlight = nil,
+        Tracer = nil,
+        Billboard = nil,
+        Connections = {}
+    }
+    ESPObjects[player] = esp
+    
+    -- Function to setup character ESP
+    local function setupCharacterESP(character)
+        -- Create highlight
+        if ESPConfig.Highlights then
+            esp.Highlight = Instance.new("Highlight")
+            esp.Highlight.Name = player.Name.."_Highlight"
+            esp.Highlight.FillTransparency = ESPConfig.HighlightTransparency
+            esp.Highlight.OutlineTransparency = ESPConfig.OutlineTransparency
+            esp.Highlight.Parent = character
+        end
+        
+        -- Create tracer
+        if ESPConfig.Tracers and CustomTracer then
+            esp.Tracer = CustomTracer:Clone()
+            esp.Tracer.Name = player.Name.."_Tracer"
+            esp.Tracer.Parent = workspace.CurrentCamera
+        end
+        
+        -- Create billboard
+        if ESPConfig.Names then
+            esp.Billboard = Instance.new("BillboardGui")
+            esp.Billboard.Name = player.Name.."_Billboard"
+            esp.Billboard.Size = UDim2.new(0, 200, 0, 50)
+            esp.Billboard.StudsOffset = Vector3.new(0, 2, 0)
+            esp.Billboard.AlwaysOnTop = true
+            
+            local TextLabel = Instance.new("TextLabel")
+            TextLabel.Size = UDim2.new(1, 0, 1, 0)
+            TextLabel.BackgroundTransparency = 1
+            TextLabel.TextScaled = true
+            TextLabel.Font = Enum.Font.SourceSansBold
+            TextLabel.TextStrokeTransparency = 0
+            TextLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+            TextLabel.Parent = esp.Billboard
+            esp.TextLabel = TextLabel
+            
+            -- Parent to head if exists
+            local head = character:WaitForChild("Head", 2)
+            if head then
+                esp.Billboard.Adornee = head
+                esp.Billboard.Parent = head
+            end
+        end
+        
+        -- Update immediately
+        UpdateESP(player)
+    end
+    
+    -- Setup for current character if exists
+    if player.Character then
+        setupCharacterESP(player.Character)
+    end
+    
+    -- Connect character added event
+    esp.Connections.characterAdded = player.CharacterAdded:Connect(function(character)
+        if ESPConfig.Enabled then
+            -- Clean up old ESP
+            if esp.Highlight then esp.Highlight:Destroy() end
+            if esp.Tracer then esp.Tracer:Destroy() end
+            if esp.Billboard then esp.Billboard:Destroy() end
+            
+            -- Setup new character
+            setupCharacterESP(character)
+        end
+    end)
 end
 
 -- Update ESP appearance
 local function UpdateESP(player)
-	if not ESPObjects[player] then return end
-	local esp = ESPObjects[player]
-	local character = player.Character
-
-	-- Clear if no character
-	if not character then
-		if esp.Highlight then esp.Highlight.Parent = nil end
-		if esp.Tracer then esp.Tracer.Parent = nil end
-		if esp.Billboard then esp.Billboard.Parent = nil end
-		return
-	end
-
-	-- Get root part for distance checks
-	local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("UpperTorso")
-	if not rootPart then return end
-
-	-- Check distance
-	local distance = (rootPart.Position - Camera.CFrame.Position).Magnitude
-	if distance > ESPConfig.MaxDistance then
-		if esp.Highlight then esp.Highlight.Parent = nil end
-		if esp.Tracer then esp.Tracer.Parent = nil end
-		if esp.Billboard then esp.Billboard.Parent = nil end
-		return
-	end
-
-	-- Determine color based on team
-	local color
-	if ESPConfig.TeamCheck and player.Team and LocalPlayer.Team then
-		color = player.Team == LocalPlayer.Team and ESPConfig.FriendlyColor or ESPConfig.EnemyColor
-	else
-		color = ESPConfig.NeutralColor
-	end
-
-	-- Update highlight
-	if esp.Highlight then
-		esp.Highlight.Parent = character
-		esp.Highlight.FillColor = color
-		esp.Highlight.OutlineColor = color
-		esp.Highlight.Enabled = ESPConfig.Enabled and ESPConfig.Highlights
-	end
-
-	-- Update tracer
-	if esp.Tracer then
-		esp.Tracer.Color = ColorSequence.new(color)
-		esp.Tracer.Parent = ESPConfig.Enabled and ESPConfig.Tracers and workspace.CurrentCamera or nil
-
-		if ESPConfig.Enabled and ESPConfig.Tracers and LocalPlayer.Character then
-			local myRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-			if myRoot then
-				local myAttachment = myRoot:FindFirstChild("RootAttachment") or Instance.new("Attachment")
-				myAttachment.Name = "RootAttachment"
-				myAttachment.Parent = myRoot
-
-				local theirAttachment = rootPart:FindFirstChild("RootAttachment") or Instance.new("Attachment")
-				theirAttachment.Name = "RootAttachment"
-				theirAttachment.Parent = rootPart
-
-				esp.Tracer.Attachment0 = myAttachment
-				esp.Tracer.Attachment1 = theirAttachment
-			end
-		end
-	end
-
-	-- Update billboard
-	if esp.Billboard and esp.TextLabel then
-		esp.Billboard.Adornee = character:FindFirstChild("Head")
-		esp.Billboard.Parent = character:FindFirstChild("Head") or nil
-
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
-		local healthText = humanoid and string.format("Health: %d/%d", humanoid.Health, humanoid.MaxHealth) or "Health: N/A"
-
-		esp.TextLabel.Text = string.format("%s\n%s\nDistance: %dm", 
-			player.DisplayName ~= "" and player.DisplayName or player.Name,
-			healthText,
-			math.floor(distance)
-		)
-		esp.TextLabel.TextColor3 = color
-		esp.Billboard.Enabled = ESPConfig.Enabled and ESPConfig.Names
-	end
+    if not ESPObjects[player] then return end
+    local esp = ESPObjects[player]
+    local character = player.Character
+    
+    -- Clear if no character
+    if not character then
+        if esp.Highlight then esp.Highlight.Parent = nil end
+        if esp.Tracer then esp.Tracer.Parent = nil end
+        if esp.Billboard then esp.Billboard.Parent = nil end
+        return
+    end
+    
+    -- Get root part for distance checks
+    local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("UpperTorso")
+    if not rootPart then return end
+    
+    -- Check distance
+    local distance = (rootPart.Position - Camera.CFrame.Position).Magnitude
+    if distance > ESPConfig.MaxDistance then
+        if esp.Highlight then esp.Highlight.Parent = nil end
+        if esp.Tracer then esp.Tracer.Parent = nil end
+        if esp.Billboard then esp.Billboard.Parent = nil end
+        return
+    end
+    
+    -- Determine color based on team (using actual team colors)
+    local color
+    if ESPConfig.TeamCheck and player.Team then
+        color = player.TeamColor.Color  -- Use the actual team color
+    else
+        color = ESPConfig.NeutralColor  -- Fallback to yellow
+    end
+    
+    -- Update highlight with team color
+    if esp.Highlight then
+        esp.Highlight.Parent = character
+        esp.Highlight.FillColor = color
+        esp.Highlight.OutlineColor = color
+        esp.Highlight.Enabled = ESPConfig.Enabled and ESPConfig.Highlights
+    end
+    
+    -- Update tracer with team color
+    if esp.Tracer then
+        esp.Tracer.Color = ColorSequence.new(color)  -- Set to team color
+        esp.Tracer.Parent = ESPConfig.Enabled and ESPConfig.Tracers and workspace.CurrentCamera or nil
+        
+        if ESPConfig.Enabled and ESPConfig.Tracers and LocalPlayer.Character then
+            local myRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if myRoot then
+                local myAttachment = myRoot:FindFirstChild("RootAttachment") or Instance.new("Attachment")
+                myAttachment.Name = "RootAttachment"
+                myAttachment.Parent = myRoot
+                
+                local theirAttachment = rootPart:FindFirstChild("RootAttachment") or Instance.new("Attachment")
+                theirAttachment.Name = "RootAttachment"
+                theirAttachment.Parent = rootPart
+                
+                esp.Tracer.Attachment0 = myAttachment
+                esp.Tracer.Attachment1 = theirAttachment
+            end
+        end
+    end
+    
+    -- Update billboard text with team color
+    if esp.Billboard and esp.TextLabel then
+        -- Make sure it's parented to head
+        local head = character:FindFirstChild("Head")
+        if head and esp.Billboard.Parent ~= head then
+            esp.Billboard.Adornee = head
+            esp.Billboard.Parent = head
+        end
+        
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        local healthText = humanoid and string.format("Health: %d/%d", humanoid.Health, humanoid.MaxHealth) or "Health: N/A"
+        
+        esp.TextLabel.Text = string.format("%s\n%s\nDistance: %dm", 
+            player.DisplayName ~= "" and player.DisplayName or player.Name,
+            healthText,
+            math.floor(distance)
+        )
+        esp.TextLabel.TextColor3 = color  -- Set to team color
+        esp.Billboard.Enabled = ESPConfig.Enabled and ESPConfig.Names
+    end
 end
 
 -- Toggle ESP system
 local function ToggleESP()
-	ESPConfig.Enabled = not ESPConfig.Enabled
-
-	if ESPConfig.Enabled then
-		-- Create ESP for all players
-		for _, player in ipairs(Players:GetPlayers()) do
-			if player ~= LocalPlayer then
-				CreateESP(player)
-			end
-		end
-
-		-- Start update loop
-		if not ESPLoopConnection then
-			ESPLoopConnection = RunService.Heartbeat:Connect(function()
-				for player, _ in pairs(ESPObjects) do
-					if player and player.Parent then
-						UpdateESP(player)
-					else
-						-- Clean up if player left
-						if ESPObjects[player] then
-							if ESPObjects[player].Highlight then ESPObjects[player].Highlight:Destroy() end
-							if ESPObjects[player].Tracer then ESPObjects[player].Tracer:Destroy() end
-							if ESPObjects[player].Billboard then ESPObjects[player].Billboard:Destroy() end
-							ESPObjects[player] = nil
-						end
-					end
-				end
-			end)
-		end
-	else
-		-- Disable all ESP objects
-		for _, esp in pairs(ESPObjects) do
-			if esp.Highlight then esp.Highlight.Enabled = false end
-			if esp.Tracer then esp.Tracer.Parent = nil end
-			if esp.Billboard then esp.Billboard.Enabled = false end
-		end
-	end
+    ESPConfig.Enabled = not ESPConfig.Enabled
+    
+    if ESPConfig.Enabled then
+        -- Create ESP for all players
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                CreateESP(player)
+            end
+        end
+        
+        -- Start update loop
+        if not ESPLoopConnection then
+            ESPLoopConnection = RunService.Heartbeat:Connect(function()
+                for player, _ in pairs(ESPObjects) do
+                    if player and player.Parent then
+                        UpdateESP(player)
+                    else
+                        -- Clean up if player left
+                        if ESPObjects[player] then
+                            if ESPObjects[player].Highlight then ESPObjects[player].Highlight:Destroy() end
+                            if ESPObjects[player].Tracer then ESPObjects[player].Tracer:Destroy() end
+                            if ESPObjects[player].Billboard then ESPObjects[player].Billboard:Destroy() end
+                            ESPObjects[player] = nil
+                        end
+                    end
+                end
+            end)
+        end
+    else
+        -- Disable all ESP objects
+        for _, esp in pairs(ESPObjects) do
+            if esp.Highlight then esp.Highlight.Enabled = false end
+            if esp.Tracer then esp.Tracer.Parent = nil end
+            if esp.Billboard then esp.Billboard.Enabled = false end
+        end
+    end
 end
 
 -- Initialize
 local function Init()
-	-- Set up player handlers
-	Players.PlayerAdded:Connect(function(player)
-		CreateESP(player)
-		if ESPConfig.Enabled then
-			UpdateESP(player)
-		end
-	end)
-
-	Players.PlayerRemoving:Connect(function(player)
-		if ESPObjects[player] then
-			if ESPObjects[player].Highlight then ESPObjects[player].Highlight:Destroy() end
-			if ESPObjects[player].Tracer then ESPObjects[player].Tracer:Destroy() end
-			if ESPObjects[player].Billboard then ESPObjects[player].Billboard:Destroy() end
-			ESPObjects[player] = nil
-		end
-	end)
-
-	-- Create ESP for existing players
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer then
-			CreateESP(player)
-		end
-	end
-
-	-- Set up keybind
-	UserInputService.InputBegan:Connect(function(input, gameProcessed)
-		if not gameProcessed and input.KeyCode == ESPConfig.ToggleKey then
-			ToggleESP()
-		end
-	end)
+    -- Set up player handlers
+    Players.PlayerAdded:Connect(function(player)
+        CreateESP(player)
+        if ESPConfig.Enabled then
+            UpdateESP(player)
+        end
+    end)
+    
+    Players.PlayerRemoving:Connect(function(player)
+        if ESPObjects[player] then
+            if ESPObjects[player].Highlight then ESPObjects[player].Highlight:Destroy() end
+            if ESPObjects[player].Tracer then ESPObjects[player].Tracer:Destroy() end
+            if ESPObjects[player].Billboard then ESPObjects[player].Billboard:Destroy() end
+            ESPObjects[player] = nil
+        end
+    end)
+    
+    -- Create ESP for existing players
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            CreateESP(player)
+        end
+    end
+    
+    -- Set up keybind
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.KeyCode == ESPConfig.ToggleKey then
+            ToggleESP()
+        end
+    end)
 end
 
 Init()
