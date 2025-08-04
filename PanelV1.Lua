@@ -396,11 +396,7 @@ local function processCommand(fullInput)
 			return
 		end,
 		esp = function()
-			local espscript = loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/main/TracerModule.Lua"))()
-			return
-		end,
-		noesp = function()
-			espscript:Destroy()
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/main/TracerModule.Lua"))()
 			return
 		end,
 		sit = function()
