@@ -1,34 +1,26 @@
-local plr = game.Players.LocalPlayer
-local char = plr.Character or plr.CharacterAdded:Wait()
-local DEBOUNCE_TIME = 0.25
-local lastRun = 0
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
 
-local function run()
-    local currentTime = tick()
-    if currentTime - lastRun < DEBOUNCE_TIME then return end
-    lastRun = currentTime
-    for _, conn in pairs(getconnections(char.DescendantAdded)) do
-        conn:Disable()
-    end
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local remoteFolder = ReplicatedStorage:FindFirstChild("Remote")
-    if remoteFolder then
-        local actionEvent = remoteFolder:FindFirstChild("ActionEvent")
-        if actionEvent then
-            actionEvent:Destroy()
-        else
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+    if method == "FireServer" and self.ClassName == "RemoteEvent" then
+        if self.Name == "BadActionEvent" then
+            return 
         end
     end
-end
 
-run()
-
-plr.CharacterAdded:Connect(function(newChar)
-    char = newChar
-    run()
+    return oldNamecall(self, ...)
 end)
 
-while true do
-    run()
-    wait(DEBOUNCE_TIME)
-end
+local oldIndex
+oldIndex = hookmetamethod(game, "__index", function(self, key)
+    if not checkcaller() and (key == "ADONIS_FLIGHT_POSITION" or key == "QuicksilverVelocity") then
+        return nil
+    end
+    return oldIndex(self, key)
+end)
+
+print("Anti-Cheat has been successfully fucked.")
