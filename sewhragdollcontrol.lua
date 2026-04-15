@@ -1,8 +1,27 @@
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Path to the EventHandler to mute damage
+local CommPath = ReplicatedStorage:WaitForChild("Communication")
+local EventHandler = require(CommPath:WaitForChild("EventHandler"))
+
 local TraumaPath = ReplicatedStorage:WaitForChild("Resources"):WaitForChild("Client"):WaitForChild("BodyTrauma")
 local TraumaModule = require(TraumaPath)
+
+-----------------------------------------------------------
+-- DAMAGE MUTE HOOK
+-----------------------------------------------------------
+-- This intercepts the communication between the trauma module and the server.
+-- It allows the physics/ragdoll to happen locally without telling the server to hurt you.
+local oldFireServer = EventHandler.FireServer
+EventHandler.FireServer = function(self, eventName, ...)
+    if eventName == "CharHit" or eventName == "HurtSelf" or eventName == "BlockedTrauma" or eventName == "ResetCharacter" then
+        return 
+    end
+    return oldFireServer(self, eventName, ...)
+end
+-----------------------------------------------------------
 
 local isManualRagdoll = false
 local heartbeatConnection = nil
@@ -87,7 +106,7 @@ local function toggleRagdoll()
             end
         end)
         
-        print("[Manual Ragdoll] Enabled")
+        print("[Manual Ragdoll] Enabled (Damage Muted)")
     else
         -- Clean up connections
         if heartbeatConnection then
@@ -137,4 +156,4 @@ game.Players.LocalPlayer.CharacterRemoving:Connect(function()
     if stateCheckConnection then stateCheckConnection:Disconnect() end
 end)
 
-print("[Manual Ragdoll Debug] Loaded - Press R to toggle")
+print("[Manual Ragdoll Debug] Loaded - Press R to toggle ragdoll without damage")
