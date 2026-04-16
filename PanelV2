@@ -9,7 +9,7 @@ local PlayerGui = player:WaitForChild("PlayerGui")
 
 -- Fetch and require the module via asset ID
 local success, result = pcall(function()
-    local objects = game:GetObjects("rbxassetid://107418017949057")
+    local objects = game:GetObjects("rbxassetid://106523502217420")
     local module = objects[1]
     if module and module:IsA("ModuleScript") then
         return require(module)
